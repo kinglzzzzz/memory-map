@@ -1,0 +1,89 @@
+.register-page{
+    width: 100vw;
+    height: 100vh;
+    background: linear-gradient(135deg, #f7fbfb, #eef8f6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Poppins', sans-serif;
+    margin: 0;
+}
+
+.register-card{
+    background: #fff;
+    width: 420px;
+    padding: 40px 36px;
+    border-radius: 20px;
+    box-shadow: 0 8px 30px rgba(80, 140, 130, 0.12);
+    border: 1px solid rgba(160, 200, 190, 0.25);
+}
+
+.card-title{
+    margin: 0 0 8px;
+    color: #2c4440;
+    font-size: 28px;
+}
+
+.card-desc{
+    color: #688480;
+    margin-bottom: 32px;
+    font-size: 15px;
+}
+
+.input-group{
+    margin-bottom: 22px;
+}
+
+.input-group label{
+    display: block;
+    margin-bottom: 8px;
+    color: #3b5752;
+    font-size: 15px;
+}
+
+.input-group input{
+    border: 1px solid #c9dcd8;
+    border-radius: 10px;
+    padding: 14px 16px;
+    width: 100%;
+    box-sizing: border-box;
+    font-size: 16px;
+    transition: all 0.2s ease;
+}
+
+.input-group input:focus{
+    outline: none;
+    border-color: #60b8a8;
+    box-shadow: 0 0 0 2px rgba(96, 184, 168, 0.15);
+}
+
+.register-btn{ 
+    width: 100%;
+    border: none;
+    background: linear-gradient(90deg, #48a898,#389788);
+    color: white;
+    border-radius: 10px;
+    padding: 14px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.register-btn:hover{ 
+    background: linear-gradient(90deg, #389889,#2f8678);
+}
+
+.tip-text{ 
+    text-align: center;
+    margin-top: 24px;
+    color: #5a7874;
+}
+
+.link{
+    color: #389788;
+    cursor: pointer;
+}
+
+.link:hover{ 
+    text-decoration: underline;
+}

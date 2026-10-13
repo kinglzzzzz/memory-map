@@ -19,6 +19,16 @@ const dbConfig = require('./db-config');
 const app = express();
 const port = Number(process.env.PORT) || 3001;
 const host = process.env.HOST || '0.0.0.0';
+const isProduction = process.env.NODE_ENV === 'production';
+const sessionSecret = String(process.env.SESSION_SECRET || '');
+
+if (sessionSecret.length < 32) {
+    throw new Error('SESSION_SECRET 必须通过环境变量提供，并且长度不能少于 32 个字符');
+}
+
+if (isProduction) {
+    app.set('trust proxy', 1);
+}
 
 app.use(cors({
     origin: 'http://localhost:5173',
@@ -27,27 +37,24 @@ app.use(cors({
 app.use(express.json());
 
 app.use(session({
-    secret: process.env.SESSION_SECRET || 'memory-map-secret-2026',
+    secret: sessionSecret,
     resave: false,
     saveUninitialized: false,
     cookie: {
         httpOnly: true,
         sameSite: 'lax',
-        secure: process.env.NODE_ENV === 'production',
+        secure: isProduction,
         maxAge:  24 * 60 * 60 * 1000
     }
 }));
 
-app.use('/uploads', (req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', 'http://localhost:5173');
-  next();
-});
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
-const uploadDir = path.join(__dirname, 'uploads');
+const uploadDir = process.env.UPLOAD_DIR
+    ? path.resolve(process.env.UPLOAD_DIR)
+    : path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir);
+    fs.mkdirSync(uploadDir, {recursive: true});
 }
+app.use('/uploads', express.static(uploadDir));
 
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {

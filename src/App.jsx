@@ -1,68 +1,69 @@
-import {useState, useEffect} from "react";;
-import MapContainer from "./components/MapContainer.jsx";
-import Login from "./components/Login.jsx";
-import Register from "./components/Register.jsx";
+import { useEffect, useState } from 'react';
+import MapContainer from './components/MapContainer.jsx';
+import Login from './components/Login.jsx';
+import Register from './components/Register.jsx';
+
+const API_BASE = '';
 
 function App() {
-  const [page,setPage] = useState('login');
-  const [isLogin,setIsLogin] = useState(false);
-  const [loading,setLoading] = useState(true);
+  const [page, setPage] = useState('login');
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() =>{
-    const chekLogin = async () =>{
-      try{
-        const res = await fetch("http://localhost:3001/api/get-user",{
-        credentials: "include"
-        });
-        const data = await res.json();;
-        if(data.isLogin){
-          setIsLogin(true);
+  useEffect(() => {
+    const checkLogin = async () => {
+      try {
+        const response = await fetch(`${API_BASE}/api/get-user`, { credentials: 'include' });
+        const data = await response.json();
+        if (data.isLogin) {
+          setUser(data.user);
           setPage('map');
-        }  
-      } catch(err){
-        console.log("后端未启动，当作未登录");
-      } finally{
+        }
+      } catch {
+        setUser(null);
+      } finally {
         setLoading(false);
       }
-  };
-  chekLogin();
-},[]);
+    };
+    checkLogin();
+  }, []);
 
-  if(loading){
-    return <div style={{textAlign:'center',marginTop:"100px"}}>加载中...</div>;
+  if (loading) {
+    return <div className="app-loading"><span />正在验证登录状态…</div>;
   }
 
-  if(page === "login"){
+  if (page === 'login') {
     return (
-      <Login 
-       switchToRegister={() => setPage("register")}
-       onLoginSuccess={
-        () => {
-          setIsLogin(true);
-          setPage("map");
-        }
-       }
+      <Login
+        switchToRegister={() => setPage('register')}
+        onLoginSuccess={(loggedInUser) => {
+          setUser(loggedInUser);
+          setPage('map');
+        }}
       />
     );
   }
 
-  if(page === "register"){
+  if (page === 'register') {
+    return <Register switchToLogin={() => setPage('login')} />;
+  }
+
+  if (page === 'map' && user) {
     return (
-      <Register 
-       switchToLogin={() => setPage("login")}
-       onRegisterSuccess={
-        () => {
-          setIsLogin(true);
-          setPage("map");
-        }
-       }
+      <MapContainer
+        user={user}
+        onLogout={async () => {
+          try {
+            await fetch(`${API_BASE}/api/logout`, { method: 'POST', credentials: 'include' });
+          } finally {
+            setUser(null);
+            setPage('login');
+          }
+        }}
       />
     );
   }
 
-  if(page === "map" && isLogin){
-    return <MapContainer />;
-  }
   return null;
 }
 

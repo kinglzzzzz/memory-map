@@ -1,17 +1,46 @@
 import { useState, useRef , useEffect } from 'react';
-import { MapContainer as LeafletMap, TileLayer, useMapEvents, Marker, Popup, useMap } from 'react-leaflet';
+import { MapContainer as LeafletMap, TileLayer, useMapEvents, Marker, Popup, ZoomControl, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet'; 
 import Profile from './Profile';
 import Album from './Album';
 import Music from './Music';
 import Agent from './Agent';
+import AdminPanel from './AdminPanel';
+import './MapContainer.css';
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
   iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+});
+
+const dollCharacters = ['🐻', '🐰', '🐼', '🐱'];
+const dollIcons = dollCharacters.map((character, index) => L.divIcon({
+  className: 'memory-doll-icon',
+  html: `<div class="memory-doll memory-doll--${index}"><span>${character}</span><i></i></div>`,
+  iconSize: [52, 62],
+  iconAnchor: [26, 58],
+  popupAnchor: [0, -55],
+}));
+
+const getDollIcon = (id) => dollIcons[Math.abs(Number(id) || 0) % dollIcons.length];
+
+const searchResultIcon = L.divIcon({
+  className: 'memory-doll-icon',
+  html: '<div class="memory-doll memory-doll--search"><span>🦊</span><b>⌖</b><i></i></div>',
+  iconSize: [56, 66],
+  iconAnchor: [28, 62],
+  popupAnchor: [0, -59],
+});
+
+const newMemoryIcon = L.divIcon({
+  className: 'memory-doll-icon',
+  html: '<div class="memory-doll memory-doll--new"><span>🐣</span><b>＋</b><i></i></div>',
+  iconSize: [54, 64],
+  iconAnchor: [27, 60],
+  popupAnchor: [0, -57],
 });
 function MapClickHandler({ onPickPoint }) {
   useMapEvents({
@@ -26,9 +55,11 @@ function MapClickHandler({ onPickPoint }) {
 }
 function MapController({targetPos}) {
   const map = useMap();
-  if(targetPos) {
-    map.setView([targetPos.lat, targetPos.lng], 10);
-  }
+  useEffect(() => {
+    if(targetPos) {
+      map.flyTo([targetPos.lat, targetPos.lng], targetPos.zoom || 15, { duration: 1.25 });
+    }
+  }, [map, targetPos]);
   return null;
 }
 function MemoryDetail({memory, onSave, onBack, onDelete, fetchMemories}){
@@ -127,8 +158,8 @@ function MemoryDetail({memory, onSave, onBack, onDelete, fetchMemories}){
     </div>
   );
 }
-const API_BASE = 'http://localhost:3001';
-export default function MapContainer({onLogout}) {
+const API_BASE = '';
+export default function MapContainer({onLogout, user}) {
   const [memories, setMemories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('map')
@@ -136,6 +167,10 @@ export default function MapContainer({onLogout}) {
   const [editMemory, setEditMemory] = useState(null)
   const [searchText, setSearchText] = useState('');
   const [mapTargetPos, setMapTargetPos] = useState(null);
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState('');
+  const [showSuggestions, setShowSuggestions] = useState(false);
   // ✅新增导航页面状态
   const [navPage, setNavPage] = useState('map');
 
@@ -158,6 +193,43 @@ export default function MapContainer({onLogout}) {
   useEffect(() => {
     fetchMemories();
   }, []);
+
+  useEffect(() => {
+    const query = searchText.trim();
+    if (query.length < 2 || mapTargetPos?.shortName === query) {
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      setSearching(true);
+      setSearchError('');
+      try {
+        const params = new URLSearchParams({
+          q: query,
+          format: 'jsonv2',
+          addressdetails: '1',
+          limit: '6',
+          'accept-language': 'zh-CN',
+        });
+        const response = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, { signal: controller.signal });
+        if (!response.ok) throw new Error('地点服务暂时不可用');
+        const data = await response.json();
+        setSearchResults(Array.isArray(data) ? data : []);
+        setShowSuggestions(true);
+        if (!data.length) setSearchError('没有找到匹配地点，请补充城市或区县名称');
+      } catch (error) {
+        if (error.name !== 'AbortError') setSearchError(error.message || '搜索失败，请稍后重试');
+      } finally {
+        if (!controller.signal.aborted) setSearching(false);
+      }
+    }, 420);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [searchText, mapTargetPos?.shortName]);
   function handlePickPoint(point) {
     setSelectedPoint(point)
   }
@@ -231,16 +303,30 @@ export default function MapContainer({onLogout}) {
     setViewMode('map');
     setEditMemory(null);
   }
+  function selectSearchResult(item){
+    const lat = Number(item.lat);
+    const lng = Number(item.lon);
+    const label = item.display_name || searchText;
+    setMapTargetPos({
+      lat,
+      lng,
+      label,
+      shortName: item.name || label.split(',')[0],
+      type: item.type,
+      zoom: ['city', 'administrative'].includes(item.type) ? 12 : 16,
+    });
+    setSearchText(item.name || label.split(',')[0]);
+    setShowSuggestions(false);
+    setSearchError('');
+  }
+
   async function searchPlace(){
     if(!searchText.trim()) return;
-    const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${searchText}&format=json`);
-    const data = await res.json();
-    if(data.length >0){
-      const item = data[0];
-      setMapTargetPos({lat: Number(item.lat), lng: Number(item.lon)});
-    } else{
-      alert('未找到该地点');
+    if (searchResults.length > 0) {
+      selectSearchResult(searchResults[0]);
+      return;
     }
+    setSearchError('请从联想结果中选择准确地点');
   }
   
   if(viewMode === 'detail'){
@@ -317,6 +403,14 @@ export default function MapContainer({onLogout}) {
               onMouseLeave={(e)=>e.target.style.background="transparent"}
               onClick={()=>setNavPage('agent')}
             >拾光agent</button>
+            {user?.role === 'super_admin' && (
+              <button
+                style={navBtnStyle}
+                onMouseEnter={(e)=>e.target.style.background="#34495e"}
+                onMouseLeave={(e)=>e.target.style.background="transparent"}
+                onClick={()=>setNavPage('admin')}
+              >管理后台</button>
+            )}
           </div>
         </div>
         <div>
@@ -348,38 +442,89 @@ export default function MapContainer({onLogout}) {
       <div style={{ marginTop: '60px', height: 'calc(100vh - 60px)' }}>
         {navPage === 'map' && (
           <div className="map-page">
-            <h1 className="page-title">拾光记忆</h1>
-            <div style={{ display: 'flex', gap: '8px',marginBottom: '16px' }}>
+            <header className="map-hero">
+              <div>
+                <span className="map-kicker">MEMORY ATLAS</span>
+                <h1>从一个地点，打开一段记忆</h1>
+                <p>搜索城市、街道或地标，地图会带你准确抵达。</p>
+              </div>
+              <div className="map-memory-count"><strong>{memories.length}</strong><span>个记忆坐标</span></div>
+            </header>
+
+            <div className="place-search">
+              <div className="place-search__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+              </div>
               <input
-                type="text"
-                placeholder="请输入地点"
+                type="search"
+                placeholder="搜索地点，例如：广州塔、杭州西湖、北京故宫"
                 value={searchText}
-                onChange={e => setSearchText(e.target.value)}
-                onKeyDown={e => {
-                  if(e.key === 'Enter'){
-                    searchPlace();
-                  }
+                onChange={e => {
+                  const value = e.target.value;
+                  setSearchText(value);
+                  if (value.trim().length < 2) setSearchResults([]);
+                  setShowSuggestions(true);
                 }}
+                onFocus={() => setShowSuggestions(true)}
+                onKeyDown={e => {
+                  if(e.key === 'Enter') searchPlace();
+                  if(e.key === 'Escape') setShowSuggestions(false);
+                }}
+                aria-label="搜索地点"
+                aria-expanded={showSuggestions && searchResults.length > 0}
               />
-              <button onClick={searchPlace} style={{ padding: '8px 16px' }}>
-                搜索
-              </button>
+              {searching && <span className="place-search__loading" aria-label="正在搜索" />}
+              <button onClick={searchPlace} type="button">定位地点</button>
+
+              {showSuggestions && (searchResults.length > 0 || searchError) && (
+                <div className="place-suggestions">
+                  {searchError && searchResults.length === 0 ? (
+                    <p className="place-suggestions__empty">{searchError}</p>
+                  ) : searchResults.map((item) => (
+                    <button type="button" key={item.place_id} onClick={() => selectSearchResult(item)}>
+                      <span className="place-suggestions__pin">⌖</span>
+                      <span><strong>{item.name || item.display_name.split(',')[0]}</strong><small>{item.display_name}</small></span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
+
+            {mapTargetPos && (
+              <div className="located-place" role="status">
+                <span className="located-place__pulse" />
+                <div><strong>已定位：{mapTargetPos.shortName}</strong><span>{mapTargetPos.label}</span></div>
+                <code>{mapTargetPos.lat.toFixed(5)}, {mapTargetPos.lng.toFixed(5)}</code>
+                <button type="button" onClick={() => { setMapTargetPos(null); setSearchText(''); }}>清除</button>
+              </div>
+            )}
             <div className="map-wrapper">
               <LeafletMap
                 center={[23.13, 113.27]}
                 zoom={8}
                 className="map-container"
+                zoomControl={false}
               >
                 <TileLayer
                   attribution='&copy; OpenStreetMap contributors'
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  maxZoom={19}
                 />
+                <ZoomControl position="bottomright" />
                 <MapController targetPos={mapTargetPos} />
                 <MapClickHandler onPickPoint={handlePickPoint} />
+                {mapTargetPos && (
+                  <Marker position={[mapTargetPos.lat, mapTargetPos.lng]} icon={searchResultIcon} zIndexOffset={1000}>
+                    <Popup className="search-popup">
+                      <strong>{mapTargetPos.shortName}</strong>
+                      <p>{mapTargetPos.label}</p>
+                      <span>{mapTargetPos.lat.toFixed(5)}, {mapTargetPos.lng.toFixed(5)}</span>
+                    </Popup>
+                  </Marker>
+                )}
                 {
                   Array.isArray(memories) && memories.map(memory => (
-                    <Marker key={memory.id} position={[memory.lat, memory.lng]}>
+                    <Marker key={memory.id} position={[memory.lat, memory.lng]} icon={getDollIcon(memory.id)}>
                       <Popup>
                         <h3 className="popup-title">{memory.title}</h3>
                         <p className="popup-story">{memory.mood || "暂无心情描述"}</p>
@@ -391,7 +536,7 @@ export default function MapContainer({onLogout}) {
                   ))
                 }
                 {selectedPoint && (
-                  <Marker key="selected-point" position={[selectedPoint.lat, selectedPoint.lng]}>
+                  <Marker key="selected-point" position={[selectedPoint.lat, selectedPoint.lng]} icon={newMemoryIcon}>
                     <Popup>
                       <p className="selected-coord">
                         选中坐标：{Number(selectedPoint.lat).toFixed(3)}, {Number(selectedPoint.lng).toFixed(3)}
@@ -406,10 +551,11 @@ export default function MapContainer({onLogout}) {
             </div>
           </div>
         )}
-        {navPage === 'profile' && <div style={{padding:20}}><Profile /></div>}
-        {navPage === 'album' && <div style={{padding:20}}><Album /></div>}
-        {navPage === 'music' && <div style={{padding:20}}><Music/></div>}
-        {navPage === 'agent' && <div style={{padding:20}}><Agent/></div>}
+        {navPage === 'profile' && <Profile onNavigate={setNavPage} onLogout={onLogout} />}
+        {navPage === 'album' && <Album />}
+        {navPage === 'music' && <Music />}
+        {navPage === 'agent' && <Agent memories={memories} />}
+        {navPage === 'admin' && user?.role === 'super_admin' && <AdminPanel />}
       </div>
     </>
   )

@@ -1,165 +1,105 @@
-import { useState, useEffect, useCallback } from 'react';
-const API_BASE = 'http://localhost:3001';
+import { useCallback, useEffect, useState } from 'react';
+import './Album.css';
+
+const API_BASE = '';
 
 export default function Album() {
   const [photos, setPhotos] = useState([]);
-  const [previewImg, setPreviewImg] = useState(null);
+  const [previewPhoto, setPreviewPhoto] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const escClose = useCallback((e) => {
-    if (e.key === 'Escape') setPreviewImg(null);
-  }, []);
+  const closePreview = useCallback(() => setPreviewPhoto(null), []);
 
   useEffect(() => {
+    let active = true;
     fetch(`${API_BASE}/api/memories`, { credentials: 'include' })
-      .then(res => res.json())
-      .then(data => {
-        const list = Array.isArray(data) ? data.filter(item => item.imgSrc) : [];
-        list.sort((a, b) => b.id - a.id);
-        setPhotos(list);
+      .then((res) => res.json())
+      .then((data) => {
+        if (!active) return;
+        const list = Array.isArray(data) ? data.filter((item) => item.imgSrc) : [];
+        setPhotos(list.sort((a, b) => Number(b.id) - Number(a.id)));
       })
-      .catch(err => {
-        console.error('相册加载失败', err);
-      });
+      .catch((error) => console.error('相册加载失败', error))
+      .finally(() => active && setLoading(false));
 
-    window.addEventListener('keydown', escClose);
-    return () => window.removeEventListener('keydown', escClose);
-  }, [escClose]);
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') closePreview();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      active = false;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [closePreview]);
+
+  const getImageUrl = (photo) => {
+    const source = photo.imgSrc?.trim() || '';
+    return source.startsWith('http') ? source : `${API_BASE}${source}`;
+  };
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      padding: '40px',
-      backgroundImage: `url("/bg-sea.png")`,
-      backgroundSize: 'cover',
-      backgroundAttachment: 'fixed',
-      backgroundPosition: 'center',
-      backgroundColor: 'rgba(255,255,255,0.2)',
-      backgroundBlendMode: 'overlay',
-      maxWidth: '1400px',
-      margin: '0 auto'
-    }}>
-      <h2 style={{
-        color: '#2c4440',
-        marginBottom: '32px',
-        fontSize: '28px',
-        fontWeight: 600,
-        textAlign: 'center'
-      }}>拾光相册</h2>
+    <main className="album-page">
+      <div className="album-backdrop" aria-hidden="true" />
+      <div className="album-shell">
+        <header className="album-header">
+          <div>
+            <span className="album-kicker">MOMENTS IN FRAME</span>
+            <h1>拾光相册</h1>
+            <p>把走过的地方，收藏成可以反复翻阅的风景。</p>
+          </div>
+          <div className="album-count"><strong>{photos.length}</strong><span>张拾光照片</span></div>
+        </header>
 
-      {photos.length === 0 ? (
-        <div style={{
-          textAlign: 'center',
-          padding: '80px 20px',
-          background: 'rgba(255,255,255,0.75)',
-          borderRadius: '16px',
-          color: '#688480'
-        }}>
-          <div style={{ fontSize: '48px', marginBottom: '16px' }}>📷</div>
-          <h3>相册空空如也</h3>
-          <p>去首页地图标记记忆，上传照片吧</p>
-        </div>
-      ) : (
-        <div style={{
-          columnCount: 'auto',
-          columnWidth: '260px',
-          columnGap: '24px',
-        }}>
-          {photos.map(photo => {
-            const rawFileName = photo.imgSrc?.trim() || '';
-            const imgUrl = rawFileName.startsWith('http') ? rawFileName : `${API_BASE}${rawFileName}`;
-            return (
-              <div
-                key={photo.id}
-                style={{
-                  background: '#fff',
-                  borderRadius: '16px',
-                  overflow: 'hidden',
-                  boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
-                  transition: 'all 0.3s ease',
-                  cursor: 'pointer',
-                  marginBottom: '24px',
-                  breakInside: 'avoid',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-6px)';
-                  e.currentTarget.style.boxShadow = '0 10px 24px rgba(0,0,0,0.12)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.08)';
-                }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setPreviewImg(imgUrl);
-                }}
-              >
-                <img
-                  src={imgUrl}
-                  alt={photo.title || ''}
-                  style={{
-                    width: '100%',
-                    display: 'block'
-                  }}
-                  onError={(e) => {
-                    e.target.src = "https://picsum.photos/id/237/400/300";
-                  }}
-                />
-                <div style={{ padding: '16px' }}>
-                  <h4 style={{
-                    margin: '0 0 8px 0',
-                    color: '#2c4440',
-                    fontSize: '18px'
-                  }}>{photo.title}</h4>
-                  <p style={{
-                    margin: 0,
-                    color: '#688480',
-                    fontSize: '14px',
-                    lineHeight: 1.5
-                  }}>{photo.mood}</p>
+        {loading ? (
+          <div className="album-loading"><span />正在冲洗记忆照片…</div>
+        ) : photos.length === 0 ? (
+          <section className="album-empty">
+            <div>▧</div>
+            <h2>相册还是空的</h2>
+            <p>回到首页，在地图上标记一段记忆并上传照片吧。</p>
+          </section>
+        ) : (
+          <section className="album-grid" aria-label="记忆照片">
+            {photos.map((photo, index) => (
+              <article className="album-card" key={photo.id} style={{ '--card-delay': `${index * 60}ms` }}>
+                <button className="album-card__image" type="button" onClick={() => setPreviewPhoto(photo)} aria-label={`查看照片：${photo.title || '未命名记忆'}`}>
+                  <img
+                    src={getImageUrl(photo)}
+                    alt={photo.title || '记忆照片'}
+                    loading="lazy"
+                    onError={(event) => {
+                      event.currentTarget.onerror = null;
+                      event.currentTarget.src = '/bg-sea.png';
+                    }}
+                  />
+                  <span className="album-card__index">{String(index + 1).padStart(2, '0')}</span>
+                  <span className="album-card__view">放大查看</span>
+                </button>
+                <div className="album-card__content">
+                  <div className="album-card__pin">⌖</div>
+                  <div>
+                    <h2>{photo.title || '未命名的记忆'}</h2>
+                    <p>{photo.mood || '这一刻没有留下文字，但照片替你记住了。'}</p>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+              </article>
+            ))}
+          </section>
+        )}
+      </div>
 
-      {/* 大图预览弹窗 */}
-      {previewImg && (
-        <div style={{
-          position: 'fixed',
-          inset: 0,
-          background: 'rgba(0,0,0,0.85)',
-          zIndex: 999,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '20px'
-        }} onClick={() => setPreviewImg(null)}>
-          <img
-            src={previewImg}
-            alt="预览大图"
-            style={{
-              maxWidth: '90%',
-              maxHeight: '90vh',
-              borderRadius: '8px'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          />
-          <button style={{
-            position: 'absolute',
-            top: '24px',
-            right: '32px',
-            fontSize: '32px',
-            color: 'white',
-            background: 'transparent',
-            border: 'none',
-            cursor: 'pointer'
-          }} onClick={(e) => {
-            e.stopPropagation();
-            setPreviewImg(null);
-          }}>×</button>
+      {previewPhoto && (
+        <div className="album-preview" role="dialog" aria-modal="true" aria-label="照片预览" onClick={closePreview}>
+          <button className="album-preview__close" type="button" onClick={closePreview} aria-label="关闭预览">×</button>
+          <figure onClick={(event) => event.stopPropagation()}>
+            <img src={getImageUrl(previewPhoto)} alt={previewPhoto.title || '照片预览'} />
+            <figcaption>
+              <strong>{previewPhoto.title || '未命名的记忆'}</strong>
+              {previewPhoto.mood && <span>{previewPhoto.mood}</span>}
+            </figcaption>
+          </figure>
         </div>
       )}
-    </div>
-  )
+    </main>
+  );
 }

@@ -432,10 +432,10 @@ export default function MapContainer({onLogout, user}) {
           <div className="app-navbar__brand">拾光记忆</div>
           <div className="app-navbar__links">
             <button className={navPage === 'map' ? 'active' : ''} onClick={()=>setNavPage('map')}>首页</button>
-            <button className={navPage === 'profile' ? 'active' : ''} onClick={()=>setNavPage('profile')}>个人中心</button>
             <button className={navPage === 'album' ? 'active' : ''} onClick={()=>setNavPage('album')}>拾光相册</button>
             <button className={navPage === 'music' ? 'active' : ''} onClick={()=>setNavPage('music')}>拾光音乐</button>
             <button className={navPage === 'agent' ? 'active' : ''} onClick={()=>setNavPage('agent')}>拾光 Agent</button>
+            <button className={navPage === 'profile' ? 'active' : ''} onClick={()=>setNavPage('profile')}>个人中心</button>
             {user?.role === 'super_admin' && (
               <button
                 className={navPage === 'admin' ? 'active' : ''}

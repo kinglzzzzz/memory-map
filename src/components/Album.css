@@ -22,7 +22,7 @@
 .album-card__view { position: absolute; z-index: 2; right: 14px; bottom: 13px; opacity: 0; padding: 6px 9px; border-radius: 8px; background: rgba(255,255,255,.86); color: #2d6f62; font-size: 10px; font-weight: 700; transform: translateY(5px); transition: .2s ease; }
 .album-card:hover .album-card__view { opacity: 1; transform: translateY(0); }
 .album-card__content { display: grid; grid-template-columns: 34px 1fr; gap: 10px; min-height: 116px; padding: 19px 18px 20px; }
-.album-card__pin { display: grid; width: 32px; height: 32px; place-items: center; border-radius: 10px; background: #e7f3ef; color: #3e8f7f; font-size: 17px; }
+.album-card__pin { display: grid; width: 36px; height: 36px; place-items: center; border-radius: 11px; background: #e7f3ef; color: #3e8f7f; font-size: 21px; line-height: 1; }
 .album-card h2 { margin: 1px 0 7px; color: #244e47; font-size: 17px; }
 .album-card p { display: -webkit-box; overflow: hidden; margin: 0; color: #6f8580; font-size: 12px; line-height: 1.65; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .album-loading, .album-empty { display: grid; place-items: center; min-height: 360px; border: 1px solid rgba(255,255,255,.9); border-radius: 22px; background: rgba(255,255,255,.76); backdrop-filter: blur(14px); color: #68847d; }

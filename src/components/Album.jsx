@@ -8,6 +8,32 @@ const getImageUrl = (photo) => {
   return source.startsWith('http') ? source : `${API_BASE}${source}`;
 };
 
+const moodEmojiRules = [
+  [/国庆|庆祝|节日|兴奋|激动/, '🎉'],
+  [/晚霞|夕阳|黄昏|日落/, '🌇'],
+  [/开心|快乐|高兴|愉快|幸福|美好/, '😊'],
+  [/惊喜|震撼|期待/, '🤩'],
+  [/浪漫|喜欢|爱|甜蜜/, '💕'],
+  [/平静|宁静|放松|治愈|惬意/, '😌'],
+  [/思念|想念|不舍/, '🥺'],
+  [/难过|伤心|失落|哭/, '😢'],
+  [/生气|愤怒/, '😠'],
+  [/疲惫|困|累/, '😴'],
+  [/美食|好吃|餐厅|咖啡/, '😋'],
+  [/大海|海边|沙滩|海浪/, '🌊'],
+  [/下雨|雨天/, '🌧️'],
+  [/下雪|雪天/, '❄️'],
+  [/登山|山顶|爬山/, '⛰️'],
+  [/旅行|出发|旅途/, '🧳']
+];
+
+const getMoodEmoji = (mood) => {
+  const text = String(mood || '').trim();
+  const writtenEmoji = text.match(/(?:\p{Regional_Indicator}{2}|\p{Extended_Pictographic})(?:\uFE0F|\u200D\p{Extended_Pictographic})*/u)?.[0];
+  if (writtenEmoji) return writtenEmoji;
+  return moodEmojiRules.find(([pattern]) => pattern.test(text))?.[1] || '🌿';
+};
+
 function PhotoAsset({photo, preview = false}) {
   const [failed, setFailed] = useState(false);
   if (failed) {
@@ -89,7 +115,9 @@ export default function Album() {
                   <span className="album-card__view">放大查看</span>
                 </button>
                 <div className="album-card__content">
-                  <div className="album-card__pin">⌖</div>
+                  <div className="album-card__pin" role="img" aria-label={`心情：${photo.mood || '平静'}`} title={photo.mood || '平静'}>
+                    {getMoodEmoji(photo.mood)}
+                  </div>
                   <div>
                     <h2>{photo.title || '未命名的记忆'}</h2>
                     <p>{photo.mood || '这一刻没有留下文字，但照片替你记住了。'}</p>

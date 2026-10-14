@@ -32,6 +32,7 @@ export default function Profile({ onNavigate = () => {}, onLogout = () => {} }) 
   const [user, setUser] = useState(null);
   const [memories, setMemories] = useState([]);
   const [authEvents, setAuthEvents] = useState([]);
+  const [musicCount, setMusicCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [editingProfile, setEditingProfile] = useState(false);
@@ -62,14 +63,19 @@ export default function Profile({ onNavigate = () => {}, onLogout = () => {} }) 
         if (!res.ok) throw new Error('登录记录加载失败');
         return res.json();
       }),
+      fetch(`${API_BASE}/api/music`, { credentials: 'include' }).then((res) => {
+        if (!res.ok) throw new Error('音乐数据加载失败');
+        return res.json();
+      }),
     ])
-      .then(([userData, memoryData, eventData]) => {
+      .then(([userData, memoryData, eventData, musicData]) => {
         if (!active) return;
         const currentUser = userData.isLogin ? userData.user : null;
         setUser(currentUser);
         setProfileDraft({email: currentUser?.email || '', birthday: currentUser?.birthday || ''});
         setMemories(Array.isArray(memoryData) ? memoryData : []);
         setAuthEvents(Array.isArray(eventData.events) ? eventData.events : []);
+        setMusicCount(Array.isArray(musicData.tracks) ? musicData.tracks.length : 0);
       })
       .catch((err) => active && setError(err.message))
       .finally(() => active && setLoading(false));
@@ -170,7 +176,7 @@ export default function Profile({ onNavigate = () => {}, onLogout = () => {} }) 
   const cards = [
     { icon: 'pin', value: memories.length, label: '记忆足迹', hint: '在地图上重温', page: 'map', tone: 'mint' },
     { icon: 'image', value: photoCount, label: '拾光照片', hint: '查看时光相册', page: 'album', tone: 'peach' },
-    { icon: 'music', value: 6, label: '主题歌单', hint: '听见此刻心情', page: 'music', tone: 'blue' },
+    { icon: 'music', value: musicCount, label: '主题歌单', hint: '听见此刻心情', page: 'music', tone: 'blue' },
   ];
 
   if (loading) {

@@ -88,7 +88,79 @@ const upload = multer({
     }
 });
 
+const audioStorage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, uploadDir),
+    filename: (req, file, cb) => {
+        const extensions = {
+            'audio/mpeg': '.mp3',
+            'audio/wav': '.wav',
+            'audio/x-wav': '.wav',
+            'audio/ogg': '.ogg',
+            'audio/mp4': '.m4a',
+            'audio/aac': '.aac'
+        };
+        cb(null, `${Date.now()}-${Math.random().toString(36).slice(2, 9)}${extensions[file.mimetype] || '.mp3'}`);
+    }
+});
+const audioUpload = multer({
+    storage: audioStorage,
+    limits: {fileSize: 30 * 1024 * 1024},
+    fileFilter: (req, file, cb) => {
+        const allowed = ['audio/mpeg', 'audio/wav', 'audio/x-wav', 'audio/ogg', 'audio/mp4', 'audio/aac'];
+        if (!allowed.includes(file.mimetype)) return cb(new Error('仅支持 MP3、WAV、OGG、M4A 或 AAC 音频'));
+        cb(null, true);
+    }
+});
+
 const db = mysql.createPool(dbConfig);
+const defaultMusicTracks = [
+    ['城市晚风', 'SoundHelix · 夜行片段', '城市', '06:12', 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3', '#425b70', '#e5a15d'],
+    ['沿海公路', 'SoundHelix · 旅途声景', '旅行', '05:31', 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3', '#3e8b91', '#eed59d'],
+    ['雨停以后', 'SoundHelix · 安静时刻', '治愈', '05:03', 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3', '#687c98', '#d8d3e8'],
+    ['山野来信', 'SoundHelix · 自然漫游', '自然', '04:46', 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3', '#4b7966', '#d4b77d'],
+    ['午后留白', 'SoundHelix · 咖啡时间', '治愈', '05:24', 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3', '#8a6656', '#e8c99d'],
+    ['星空慢行', 'SoundHelix · 深夜收藏', '城市', '05:15', 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3', '#363c69', '#b88bb8']
+];
+
+async function ensureMusicSchema() {
+    await db.query(`
+        CREATE TABLE IF NOT EXISTS music_tracks (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            user_id INT NOT NULL,
+            title VARCHAR(120) NOT NULL,
+            artist VARCHAR(180) NOT NULL DEFAULT '',
+            theme VARCHAR(40) NOT NULL DEFAULT '其他',
+            duration_label VARCHAR(20) NOT NULL DEFAULT '--:--',
+            audio_url VARCHAR(600) NOT NULL,
+            color_a VARCHAR(20) NOT NULL DEFAULT '#425b70',
+            color_b VARCHAR(20) NOT NULL DEFAULT '#e5a15d',
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY idx_music_user_time (user_id, created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+}
+
+async function seedMusicForUser(userId) {
+    const [[userRow]] = await db.query('SELECT music_initialized FROM app_user WHERE id = ?', [userId]);
+    if (!userRow || Number(userRow.music_initialized) === 1) return;
+    await db.query(`
+        INSERT INTO music_tracks (user_id, title, artist, theme, duration_label, audio_url, color_a, color_b)
+        VALUES ${defaultMusicTracks.map(() => '(?,?,?,?,?,?,?,?)').join(',')}
+    `, defaultMusicTracks.flatMap((track) => [userId, ...track]));
+    await db.query('UPDATE app_user SET music_initialized = 1 WHERE id = ?', [userId]);
+}
+
+const serializeMusicTrack = (row) => ({
+    id: row.id,
+    title: row.title,
+    artist: row.artist,
+    theme: row.theme,
+    duration: row.duration_label,
+    url: row.audio_url,
+    colors: [row.color_a, row.color_b]
+});
 function checkLogin(req, res, next){
     if(!req.session.user){
         return res.status(401).json({success: false, message: '未登录，请先登录'});
@@ -504,6 +576,106 @@ if (fs.existsSync(frontendDist)) {
   });
 }
 
+const musicPalettes = {
+    '城市': ['#425b70', '#e5a15d'],
+    '旅行': ['#3e8b91', '#eed59d'],
+    '治愈': ['#687c98', '#d8d3e8'],
+    '自然': ['#4b7966', '#d4b77d'],
+    '其他': ['#655b83', '#c69ac8']
+};
+const removeUploadedMedia = (mediaUrl) => {
+    if (!String(mediaUrl || '').startsWith('/uploads/')) return;
+    const mediaPath = path.join(uploadDir, path.basename(mediaUrl));
+    if (fs.existsSync(mediaPath)) fs.unlinkSync(mediaPath);
+};
+
+app.get('/api/music', checkLogin, async (req, res) => {
+    try {
+        await seedMusicForUser(req.session.user.id);
+        const [rows] = await db.query('SELECT * FROM music_tracks WHERE user_id = ? ORDER BY id ASC', [req.session.user.id]);
+        res.json({success: true, tracks: rows.map(serializeMusicTrack)});
+    } catch (error) {
+        console.error('音乐列表加载失败', error);
+        res.status(500).json({success: false, message: '音乐列表加载失败'});
+    }
+});
+
+app.post('/api/music', checkLogin, audioUpload.single('audio'), async (req, res) => {
+    const title = String(req.body?.title || '').trim();
+    const artist = String(req.body?.artist || '').trim();
+    const theme = String(req.body?.theme || '其他').trim().slice(0, 40) || '其他';
+    const durationLabel = String(req.body?.duration || '--:--').trim().slice(0, 20) || '--:--';
+    const externalUrl = String(req.body?.audioUrl || '').trim();
+    const audioUrl = req.file ? `/uploads/${req.file.filename}` : externalUrl;
+    if (!title || title.length > 120) {
+        if (req.file) removeUploadedMedia(`/uploads/${req.file.filename}`);
+        return res.status(400).json({success: false, message: '音乐标题需为 1 至 120 个字符'});
+    }
+    if (!audioUrl || (!audioUrl.startsWith('/uploads/') && !/^https?:\/\//i.test(audioUrl))) {
+        if (req.file) removeUploadedMedia(`/uploads/${req.file.filename}`);
+        return res.status(400).json({success: false, message: '请上传音频文件或填写有效的音频网址'});
+    }
+    const colors = musicPalettes[theme] || musicPalettes['其他'];
+    try {
+        const [result] = await db.query(`
+            INSERT INTO music_tracks (user_id, title, artist, theme, duration_label, audio_url, color_a, color_b)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `, [req.session.user.id, title, artist.slice(0, 180), theme, durationLabel, audioUrl, colors[0], colors[1]]);
+        const [rows] = await db.query('SELECT * FROM music_tracks WHERE id = ? AND user_id = ?', [result.insertId, req.session.user.id]);
+        res.json({success: true, track: serializeMusicTrack(rows[0])});
+    } catch (error) {
+        if (req.file) removeUploadedMedia(`/uploads/${req.file.filename}`);
+        console.error('音乐新增失败', error);
+        res.status(500).json({success: false, message: '音乐新增失败'});
+    }
+});
+
+app.put('/api/music/:id', checkLogin, audioUpload.single('audio'), async (req, res) => {
+    try {
+        const [ownedRows] = await db.query('SELECT * FROM music_tracks WHERE id = ? AND user_id = ?', [req.params.id, req.session.user.id]);
+        if (!ownedRows.length) {
+            if (req.file) removeUploadedMedia(`/uploads/${req.file.filename}`);
+            return res.status(404).json({success: false, message: '没有找到这首音乐'});
+        }
+        const current = ownedRows[0];
+        const title = String(req.body?.title || '').trim();
+        const artist = String(req.body?.artist || '').trim();
+        const theme = String(req.body?.theme || '其他').trim().slice(0, 40) || '其他';
+        const durationLabel = String(req.body?.duration || '--:--').trim().slice(0, 20) || '--:--';
+        const externalUrl = String(req.body?.audioUrl || '').trim();
+        const audioUrl = req.file ? `/uploads/${req.file.filename}` : (externalUrl || current.audio_url);
+        if (!title || title.length > 120 || (!audioUrl.startsWith('/uploads/') && !/^https?:\/\//i.test(audioUrl))) {
+            if (req.file) removeUploadedMedia(`/uploads/${req.file.filename}`);
+            return res.status(400).json({success: false, message: '音乐信息不完整'});
+        }
+        const colors = musicPalettes[theme] || musicPalettes['其他'];
+        await db.query(`
+            UPDATE music_tracks SET title = ?, artist = ?, theme = ?, duration_label = ?, audio_url = ?, color_a = ?, color_b = ?
+            WHERE id = ? AND user_id = ?
+        `, [title, artist.slice(0, 180), theme, durationLabel, audioUrl, colors[0], colors[1], req.params.id, req.session.user.id]);
+        if (req.file && current.audio_url !== audioUrl) removeUploadedMedia(current.audio_url);
+        const [rows] = await db.query('SELECT * FROM music_tracks WHERE id = ? AND user_id = ?', [req.params.id, req.session.user.id]);
+        res.json({success: true, track: serializeMusicTrack(rows[0])});
+    } catch (error) {
+        if (req.file) removeUploadedMedia(`/uploads/${req.file.filename}`);
+        console.error('音乐更新失败', error);
+        res.status(500).json({success: false, message: '音乐更新失败'});
+    }
+});
+
+app.delete('/api/music/:id', checkLogin, async (req, res) => {
+    try {
+        const [rows] = await db.query('SELECT audio_url FROM music_tracks WHERE id = ? AND user_id = ?', [req.params.id, req.session.user.id]);
+        if (!rows.length) return res.status(404).json({success: false, message: '没有找到这首音乐'});
+        await db.query('DELETE FROM music_tracks WHERE id = ? AND user_id = ?', [req.params.id, req.session.user.id]);
+        removeUploadedMedia(rows[0].audio_url);
+        res.json({success: true});
+    } catch (error) {
+        console.error('音乐删除失败', error);
+        res.status(500).json({success: false, message: '音乐删除失败'});
+    }
+});
+
 app.get('/api/geocode', checkLogin, async (req, res) => {
     const query = String(req.query.q || '').trim();
     if (query.length < 2 || query.length > 100) {
@@ -573,6 +745,7 @@ async function startServer() {
   try {
     await ensureAuthSchema(db);
     await ensureKnowledgeSchema(db);
+    await ensureMusicSchema();
     console.log(`Knowledge base ready: ${require('../knowledge/seed.json').length} entries`);
     app.listen(port, host, () => {
       console.log(`Server is running at http://${host}:${port}`);

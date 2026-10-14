@@ -67,7 +67,7 @@ async function ensureKnowledgeSchema(db) {
         category = VALUES(category), icon = VALUES(icon), title = VALUES(title),
         summary = VALUES(summary), content = VALUES(content), steps_json = VALUES(steps_json),
         keywords_json = VALUES(keywords_json), source_label = VALUES(source_label),
-        source_url = VALUES(source_url), is_active = 1
+        source_url = VALUES(source_url)
     `, [
       entry.slug,
       entry.category,

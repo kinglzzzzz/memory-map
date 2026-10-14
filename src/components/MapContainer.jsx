@@ -242,7 +242,7 @@ function MemoryDetail({memory, onSave, onBack, onDelete, fetchMemories}){
   );
 }
 const API_BASE = '';
-export default function MapContainer({onLogout, user}) {
+export default function MapContainer({onLogout, user, initialPage = 'map'}) {
   const [memories, setMemories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('map')
@@ -254,8 +254,8 @@ export default function MapContainer({onLogout, user}) {
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
-  // ✅新增导航页面状态
-  const [navPage, setNavPage] = useState('map');
+  const [navPage, setNavPage] = useState(initialPage);
+  const [adminSection, setAdminSection] = useState('overview');
 
   const fetchMemories = async() =>{
     setLoading(true);
@@ -427,21 +427,24 @@ export default function MapContainer({onLogout, user}) {
 
   return (
     <>
-      <nav className="app-navbar" aria-label="主导航">
+      <nav className={`app-navbar ${user?.role === 'super_admin' ? 'app-navbar--admin' : ''}`} aria-label={user?.role === 'super_admin' ? '超级管理员导航' : '主导航'}>
         <div className="app-navbar__main">
-          <div className="app-navbar__brand">拾光记忆</div>
+          <div className="app-navbar__brand">{user?.role === 'super_admin' ? <>拾光管理台 <small>ADMIN</small></> : '拾光记忆'}</div>
           <div className="app-navbar__links">
-            <button className={navPage === 'map' ? 'active' : ''} onClick={()=>setNavPage('map')}>首页</button>
-            <button className={navPage === 'album' ? 'active' : ''} onClick={()=>setNavPage('album')}>拾光相册</button>
-            <button className={navPage === 'music' ? 'active' : ''} onClick={()=>setNavPage('music')}>拾光音乐</button>
-            <button className={navPage === 'agent' ? 'active' : ''} onClick={()=>setNavPage('agent')}>拾光 Agent</button>
-            <button className={navPage === 'profile' ? 'active' : ''} onClick={()=>setNavPage('profile')}>拾光档案</button>
-            {user?.role === 'super_admin' && (
-              <button
-                className={navPage === 'admin' ? 'active' : ''}
-                onClick={()=>setNavPage('admin')}
-              >管理后台</button>
-            )}
+            {user?.role === 'super_admin' ? <>
+              <button className={navPage === 'admin' && adminSection === 'overview' ? 'active' : ''} onClick={() => { setAdminSection('overview'); setNavPage('admin'); }}>数据总览</button>
+              <button className={navPage === 'admin' && adminSection === 'users' ? 'active' : ''} onClick={() => { setAdminSection('users'); setNavPage('admin'); }}>用户管理</button>
+              <button className={navPage === 'admin' && adminSection === 'content' ? 'active' : ''} onClick={() => { setAdminSection('content'); setNavPage('admin'); }}>内容数据库</button>
+              <button className={navPage === 'admin' && adminSection === 'events' ? 'active' : ''} onClick={() => { setAdminSection('events'); setNavPage('admin'); }}>安全审计</button>
+              <button className={navPage === 'map' ? 'active' : ''} onClick={()=>setNavPage('map')}>用户端地图</button>
+              <button className={navPage === 'profile' ? 'active' : ''} onClick={()=>setNavPage('profile')}>管理员档案</button>
+            </> : <>
+              <button className={navPage === 'map' ? 'active' : ''} onClick={()=>setNavPage('map')}>首页</button>
+              <button className={navPage === 'album' ? 'active' : ''} onClick={()=>setNavPage('album')}>拾光相册</button>
+              <button className={navPage === 'music' ? 'active' : ''} onClick={()=>setNavPage('music')}>拾光音乐</button>
+              <button className={navPage === 'agent' ? 'active' : ''} onClick={()=>setNavPage('agent')}>拾光 Agent</button>
+              <button className={navPage === 'profile' ? 'active' : ''} onClick={()=>setNavPage('profile')}>拾光档案</button>
+            </>}
           </div>
         </div>
           <button className="app-navbar__logout"
@@ -567,7 +570,7 @@ export default function MapContainer({onLogout, user}) {
         {navPage === 'album' && <Album />}
         {navPage === 'music' && <Music />}
         {navPage === 'agent' && <Agent memories={memories} />}
-        {navPage === 'admin' && user?.role === 'super_admin' && <AdminPanel />}
+        {navPage === 'admin' && user?.role === 'super_admin' && <AdminPanel section={adminSection} onSectionChange={setAdminSection} />}
       </div>
     </>
   )

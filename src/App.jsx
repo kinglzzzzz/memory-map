@@ -52,6 +52,7 @@ function App() {
     return (
       <MapContainer
         user={user}
+        initialPage={user.role === 'super_admin' ? 'admin' : 'map'}
         onLogout={async () => {
           try {
             await fetch(`${API_BASE}/api/logout`, { method: 'POST', credentials: 'include' });

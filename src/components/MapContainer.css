@@ -1,12 +1,18 @@
 .app-navbar { position: fixed; z-index: 1100; top: 0; left: 0; display: flex; width: 100%; height: 64px; align-items: center; justify-content: space-between; gap: 20px; padding: 0 24px; background: #294354; box-shadow: 0 5px 18px rgba(20,48,60,.12); }
 .app-navbar__main { display: flex; min-width: 0; align-items: center; gap: clamp(20px, 3vw, 42px); }
 .app-navbar__brand { flex: 0 0 auto; color: #fff; font-size: 23px; font-weight: 800; letter-spacing: .08em; white-space: nowrap; }
+.app-navbar__brand small { margin-left: 7px; padding: 3px 5px; border: 1px solid rgba(220,190,125,.55); border-radius: 5px; color: #e7ca8d; font-size: 7px; letter-spacing: .14em; vertical-align: middle; }
 .app-navbar__links { display: flex; min-width: 0; align-items: center; gap: clamp(2px, 1.1vw, 18px); }
 .app-navbar__links button { flex: 0 0 auto; padding: 9px 11px; border: 0; border-radius: 8px; background: transparent; color: rgba(255,255,255,.86); font-size: 14px; white-space: nowrap; cursor: pointer; transition: background .2s ease, color .2s ease; }
 .app-navbar__links button:hover, .app-navbar__links button.active { background: rgba(255,255,255,.13); color: #fff; }
 .app-navbar__logout { flex: 0 0 auto; padding: 8px 13px; border: 1px solid rgba(255,255,255,.2); border-radius: 8px; background: rgba(255,255,255,.1); color: #fff; font-size: 13px; cursor: pointer; }
 .app-navbar__logout:hover { background: #bd574f; }
 .app-navbar__logout-short { display: none; }
+.app-navbar--admin { background: linear-gradient(105deg, #122d32, #1c3c40 62%, #25464a); border-bottom: 1px solid rgba(210,177,106,.3); box-shadow: 0 6px 24px rgba(10,35,38,.2); }
+.app-navbar--admin .app-navbar__brand { color: #f6efdF; font-family: Georgia, "STSong", serif; letter-spacing: .04em; }
+.app-navbar--admin .app-navbar__links button { color: rgba(236,242,238,.78); }
+.app-navbar--admin .app-navbar__links button:hover, .app-navbar--admin .app-navbar__links button.active { background: rgba(204,170,99,.16); color: #f5dca8; }
+.app-navbar--admin .app-navbar__logout { border-color: rgba(223,194,132,.28); background: rgba(223,194,132,.09); }
 .app-content { min-height: calc(100dvh - 64px); margin-top: 64px; }
 .map-page { width: min(1280px, calc(100% - 40px)); margin: 0 auto; padding: 42px 0 56px; }
 .map-hero { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 24px; }

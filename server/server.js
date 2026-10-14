@@ -204,6 +204,7 @@ app.post('/api/login', async (req, res) => {
     try{
         const username = String(req.body?.username || '').trim();
         const password = String(req.body?.password || '');
+        const adminMode = req.body?.adminMode === true;
         const [rows] = await db.query(`
             SELECT id, username, password, role, email, avatar_url,
                    DATE_FORMAT(birthday, '%Y-%m-%d') AS birthday
@@ -218,6 +219,10 @@ app.post('/api/login', async (req, res) => {
         if(!ok) {
             await logAuthEvent(db, req, {userId: user.id, username: user.username, eventType: 'LOGIN_FAILED'});
             return res.json({success: false, message: '密码错误'});
+        }
+        if (adminMode && user.role !== 'super_admin') {
+            await logAuthEvent(db, req, {userId: user.id, username: user.username, eventType: 'ADMIN_LOGIN_DENIED'});
+            return res.status(403).json({success: false, message: '该账号没有超级管理员权限'});
         }
         await new Promise((resolve, reject) => req.session.regenerate(error => error ? reject(error) : resolve()));
         req.session.user = {
@@ -349,7 +354,7 @@ app.get('/api/auth/me/events', checkLogin, async (req, res) => {
 
 app.get('/api/admin/summary', requireRole('super_admin'), async (req, res) => {
     try {
-        const [[userStats], [todayStats]] = await Promise.all([
+        const [[userStats], [todayStats], [contentStats], [recentUsers], [recentMemories]] = await Promise.all([
             db.query(`
                 SELECT COUNT(*) AS totalUsers,
                        SUM(role = 'super_admin') AS adminUsers,
@@ -362,9 +367,45 @@ app.get('/api/admin/summary', requireRole('super_admin'), async (req, res) => {
                        SUM(event_type = 'LOGIN_FAILED') AS failedToday
                 FROM auth_events
                 WHERE created_at >= CURDATE()
+            `),
+            db.query(`
+                SELECT
+                  (SELECT COUNT(*) FROM memories) AS memories,
+                  (SELECT COUNT(*) FROM memories WHERE imgSrc IS NOT NULL AND imgSrc <> '') AS photos,
+                  (SELECT COUNT(*) FROM music_tracks) AS musicTracks,
+                  (SELECT COUNT(*) FROM knowledge_entries) AS knowledgeEntries,
+                  (SELECT COUNT(*) FROM knowledge_entries WHERE is_active = 1) AS activeKnowledge,
+                  (SELECT COUNT(*) FROM agent_messages) AS agentMessages,
+                  (SELECT COUNT(*) FROM auth_events) AS authEvents
+            `),
+            db.query(`
+                SELECT id, username, role, created_at
+                FROM app_user
+                ORDER BY id DESC
+                LIMIT 5
+            `),
+            db.query(`
+                SELECT m.id, m.title, m.mood, m.imgSrc, u.username
+                FROM memories m
+                LEFT JOIN app_user u ON u.id = m.user_id
+                ORDER BY m.id DESC
+                LIMIT 5
             `)
         ]);
-        res.json({success: true, summary: {...userStats[0], ...todayStats[0]}});
+        res.json({
+            success: true,
+            summary: {...userStats[0], ...todayStats[0], ...contentStats[0]},
+            recentUsers,
+            recentMemories,
+            tables: [
+                {key: 'users', label: '账号数据', table: 'app_user', count: userStats[0].totalUsers},
+                {key: 'memories', label: '记忆坐标', table: 'memories', count: contentStats[0].memories},
+                {key: 'music', label: '音乐内容', table: 'music_tracks', count: contentStats[0].musicTracks},
+                {key: 'knowledge', label: '知识条目', table: 'knowledge_entries', count: contentStats[0].knowledgeEntries},
+                {key: 'agent', label: 'Agent 对话', table: 'agent_messages', count: contentStats[0].agentMessages},
+                {key: 'events', label: '认证审计', table: 'auth_events', count: contentStats[0].authEvents}
+            ]
+        });
     } catch (error) {
         console.error('管理员统计加载失败', error);
         res.status(500).json({success: false, message: '管理员统计加载失败'});
@@ -374,8 +415,12 @@ app.get('/api/admin/summary', requireRole('super_admin'), async (req, res) => {
 app.get('/api/admin/users', requireRole('super_admin'), async (req, res) => {
     try {
         const [rows] = await db.query(`
-            SELECT u.id, u.username, u.role, u.created_at, u.last_login_at,
+            SELECT u.id, u.username, u.role, u.email,
+                   DATE_FORMAT(u.birthday, '%Y-%m-%d') AS birthday,
+                   u.created_at, u.last_login_at,
                    (SELECT COUNT(*) FROM memories m WHERE m.user_id = u.id) AS memory_count,
+                   (SELECT COUNT(*) FROM music_tracks t WHERE t.user_id = u.id) AS music_count,
+                   (SELECT COUNT(*) FROM agent_messages a WHERE a.user_id = u.id) AS agent_message_count,
                    (SELECT COUNT(*) FROM auth_events e WHERE e.user_id = u.id AND e.event_type = 'LOGIN_SUCCESS') AS login_count
             FROM app_user u
             ORDER BY u.id DESC
@@ -385,6 +430,169 @@ app.get('/api/admin/users', requireRole('super_admin'), async (req, res) => {
     } catch (error) {
         console.error('用户列表加载失败', error);
         res.status(500).json({success: false, message: '用户列表加载失败'});
+    }
+});
+
+app.patch('/api/admin/users/:id/role', requireRole('super_admin'), async (req, res) => {
+    const targetId = Number(req.params.id);
+    const role = String(req.body?.role || '');
+    if (!Number.isInteger(targetId) || !['user', 'super_admin'].includes(role)) {
+        return res.status(400).json({success: false, message: '角色参数无效'});
+    }
+    if (targetId === Number(req.session.user.id)) {
+        return res.status(400).json({success: false, message: '不能修改当前登录管理员自己的角色'});
+    }
+    try {
+        const [[target]] = await db.query('SELECT id, username, role FROM app_user WHERE id = ?', [targetId]);
+        if (!target) return res.status(404).json({success: false, message: '没有找到该账号'});
+        if (target.role === 'super_admin' && role === 'user') {
+            const [[adminCount]] = await db.query("SELECT COUNT(*) AS count FROM app_user WHERE role = 'super_admin'");
+            if (Number(adminCount.count) <= 1) {
+                return res.status(400).json({success: false, message: '必须至少保留一名超级管理员'});
+            }
+        }
+        await db.query('UPDATE app_user SET role = ? WHERE id = ?', [role, targetId]);
+        await logAuthEvent(db, req, {
+            userId: req.session.user.id,
+            username: req.session.user.username,
+            eventType: role === 'super_admin' ? 'ADMIN_GRANTED' : 'ADMIN_REVOKED'
+        });
+        res.json({success: true, user: {...target, role}});
+    } catch (error) {
+        console.error('用户角色更新失败', error);
+        res.status(500).json({success: false, message: '用户角色更新失败'});
+    }
+});
+
+app.delete('/api/admin/users/:id', requireRole('super_admin'), async (req, res) => {
+    const targetId = Number(req.params.id);
+    if (!Number.isInteger(targetId)) return res.status(400).json({success: false, message: '用户编号无效'});
+    if (targetId === Number(req.session.user.id)) {
+        return res.status(400).json({success: false, message: '不能删除当前登录的管理员账号'});
+    }
+
+    const connection = await db.getConnection();
+    let mediaUrls = [];
+    try {
+        await connection.beginTransaction();
+        const [[target]] = await connection.query('SELECT id, username, role, avatar_url FROM app_user WHERE id = ? FOR UPDATE', [targetId]);
+        if (!target) {
+            await connection.rollback();
+            return res.status(404).json({success: false, message: '没有找到该账号'});
+        }
+        if (target.role === 'super_admin') {
+            const [[adminCount]] = await connection.query("SELECT COUNT(*) AS count FROM app_user WHERE role = 'super_admin'");
+            if (Number(adminCount.count) <= 1) {
+                await connection.rollback();
+                return res.status(400).json({success: false, message: '必须至少保留一名超级管理员'});
+            }
+        }
+        const [memoryMedia] = await connection.query('SELECT imgSrc AS url FROM memories WHERE user_id = ?', [targetId]);
+        const [musicMedia] = await connection.query("SELECT audio_url AS url FROM music_tracks WHERE user_id = ? AND audio_url LIKE '/uploads/%'", [targetId]);
+        mediaUrls = [target.avatar_url, ...memoryMedia.map((item) => item.url), ...musicMedia.map((item) => item.url)].filter(Boolean);
+        await connection.query('DELETE FROM memories WHERE user_id = ?', [targetId]);
+        await connection.query('DELETE FROM music_tracks WHERE user_id = ?', [targetId]);
+        await connection.query('DELETE FROM agent_messages WHERE user_id = ?', [targetId]);
+        await connection.query('DELETE FROM auth_events WHERE user_id = ?', [targetId]);
+        await connection.query('DELETE FROM app_user WHERE id = ?', [targetId]);
+        await connection.commit();
+        mediaUrls.forEach((mediaUrl) => {
+            if (!String(mediaUrl).startsWith('/uploads/')) return;
+            const mediaPath = path.join(uploadDir, path.basename(mediaUrl));
+            if (fs.existsSync(mediaPath)) fs.unlinkSync(mediaPath);
+        });
+        res.json({success: true});
+    } catch (error) {
+        await connection.rollback();
+        console.error('用户删除失败', error);
+        res.status(500).json({success: false, message: '用户删除失败'});
+    } finally {
+        connection.release();
+    }
+});
+
+const adminDataQueries = {
+    memories: `
+        SELECT m.id, m.user_id, u.username, m.title, m.mood, m.lat, m.lng, m.imgSrc
+        FROM memories m LEFT JOIN app_user u ON u.id = m.user_id
+        ORDER BY m.id DESC LIMIT ?
+    `,
+    music: `
+        SELECT t.id, t.user_id, u.username, t.title, t.artist, t.theme,
+               t.duration_label, t.audio_url, t.created_at
+        FROM music_tracks t LEFT JOIN app_user u ON u.id = t.user_id
+        ORDER BY t.id DESC LIMIT ?
+    `,
+    knowledge: `
+        SELECT id, slug, category, title, summary, source_label, is_active, updated_at
+        FROM knowledge_entries ORDER BY id DESC LIMIT ?
+    `,
+    agent: `
+        SELECT a.id, a.user_id, u.username, a.role,
+               LEFT(a.content, 500) AS content, a.created_at
+        FROM agent_messages a LEFT JOIN app_user u ON u.id = a.user_id
+        ORDER BY a.id DESC LIMIT ?
+    `
+};
+
+app.get('/api/admin/data/:type', requireRole('super_admin'), async (req, res) => {
+    const type = String(req.params.type || '');
+    const query = adminDataQueries[type];
+    if (!query) return res.status(404).json({success: false, message: '不支持的数据类型'});
+    const limit = Math.min(Math.max(Number(req.query.limit) || 200, 1), 500);
+    try {
+        const [rows] = await db.query(query, [limit]);
+        res.json({success: true, type, rows});
+    } catch (error) {
+        console.error('数据库内容加载失败', error);
+        res.status(500).json({success: false, message: '数据库内容加载失败'});
+    }
+});
+
+app.patch('/api/admin/knowledge/:id', requireRole('super_admin'), async (req, res) => {
+    const id = Number(req.params.id);
+    const isActive = req.body?.isActive === true ? 1 : req.body?.isActive === false ? 0 : null;
+    if (!Number.isInteger(id) || isActive === null) {
+        return res.status(400).json({success: false, message: '知识条目参数无效'});
+    }
+    try {
+        const [result] = await db.query('UPDATE knowledge_entries SET is_active = ? WHERE id = ?', [isActive, id]);
+        if (!result.affectedRows) return res.status(404).json({success: false, message: '没有找到该知识条目'});
+        res.json({success: true});
+    } catch (error) {
+        console.error('知识条目状态更新失败', error);
+        res.status(500).json({success: false, message: '知识条目状态更新失败'});
+    }
+});
+
+app.delete('/api/admin/data/:type/:id', requireRole('super_admin'), async (req, res) => {
+    const type = String(req.params.type || '');
+    const id = Number(req.params.id);
+    const deleteConfig = {
+        memories: {table: 'memories', mediaColumn: 'imgSrc'},
+        music: {table: 'music_tracks', mediaColumn: 'audio_url'},
+        agent: {table: 'agent_messages', mediaColumn: null}
+    }[type];
+    if (!deleteConfig || !Number.isInteger(id)) {
+        return res.status(400).json({success: false, message: '删除参数无效'});
+    }
+    try {
+        let mediaUrl = '';
+        if (deleteConfig.mediaColumn) {
+            const [rows] = await db.query(`SELECT ${deleteConfig.mediaColumn} AS mediaUrl FROM ${deleteConfig.table} WHERE id = ?`, [id]);
+            if (!rows.length) return res.status(404).json({success: false, message: '没有找到该记录'});
+            mediaUrl = rows[0].mediaUrl || '';
+        }
+        const [result] = await db.query(`DELETE FROM ${deleteConfig.table} WHERE id = ?`, [id]);
+        if (!result.affectedRows) return res.status(404).json({success: false, message: '没有找到该记录'});
+        if (String(mediaUrl).startsWith('/uploads/')) {
+            const mediaPath = path.join(uploadDir, path.basename(mediaUrl));
+            if (fs.existsSync(mediaPath)) fs.unlinkSync(mediaPath);
+        }
+        res.json({success: true});
+    } catch (error) {
+        console.error('数据库记录删除失败', error);
+        res.status(500).json({success: false, message: '数据库记录删除失败'});
     }
 });
 

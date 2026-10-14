@@ -4,7 +4,6 @@ import './Register.css';
 const API_BASE = '';
 
 export default function Login({ switchToRegister = () => {}, onLoginSuccess = () => {} }) {
-  const [adminMode, setAdminMode] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -20,7 +19,7 @@ export default function Login({ switchToRegister = () => {}, onLoginSuccess = ()
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ username, password, adminMode }),
+        body: JSON.stringify({ username, password }),
       });
       const data = await response.json();
       if (!data.success) throw new Error(data.message || '登录失败');
@@ -33,13 +32,13 @@ export default function Login({ switchToRegister = () => {}, onLoginSuccess = ()
   };
 
   return (
-    <main className={`auth-page auth-page--login ${adminMode ? 'auth-page--admin' : ''}`}>
+    <main className="auth-page auth-page--login">
       <section className="auth-showcase">
-        <div className="auth-brand auth-brand--wordmark">{adminMode ? '拾光管理台' : '拾光记忆'}</div>
+        <div className="auth-brand auth-brand--wordmark">拾光记忆</div>
         <div className="auth-showcase__copy">
-          <span className="auth-kicker">{adminMode ? 'MEMORY MAP · CONTROL CENTER' : 'YOUR MEMORY ATLAS'}</span>
-          <h1>{adminMode ? <>守护每一份记录，<br />让数据清晰可见。</> : <>让散落的时光，<br />重新拥有坐标。</>}</h1>
-          <p>{adminMode ? '查看平台运行状态，管理用户权限与业务数据。所有操作都会经过权限校验。' : '记录地点、照片与心情，只在你的账号里安全保存。'}</p>
+          <span className="auth-kicker">YOUR MEMORY ATLAS</span>
+          <h1>让散落的时光，<br />重新拥有坐标。</h1>
+          <p>记录地点、照片与心情，只在你的账号里安全保存。</p>
         </div>
         <div className="auth-map-art" aria-hidden="true">
           <i className="auth-route auth-route--one" />
@@ -52,17 +51,13 @@ export default function Login({ switchToRegister = () => {}, onLoginSuccess = ()
 
       <section className="auth-form-panel">
         <div className="auth-card">
-          <div className="auth-mode-switch" role="tablist" aria-label="登录入口">
-            <button type="button" role="tab" aria-selected={!adminMode} className={!adminMode ? 'active' : ''} onClick={() => { setAdminMode(false); setError(''); }}>拾光者登录</button>
-            <button type="button" role="tab" aria-selected={adminMode} className={adminMode ? 'active' : ''} onClick={() => { setAdminMode(true); setError(''); }}>管理员入口</button>
-          </div>
           <div className="auth-card__heading">
             <div className="auth-welcome">
-              <span>{adminMode ? '管理端认证' : '欢迎回来'}</span>
-              <em>{adminMode ? 'ADMIN ACCESS' : 'WELCOME BACK'}</em>
+              <span>欢迎回来</span>
+              <em>WELCOME BACK</em>
             </div>
-            <h2>{adminMode ? '超级管理员登录' : '登录拾光地图'}</h2>
-            <p>{adminMode ? '仅限已授权的超级管理员账号' : '进入属于你的记忆空间'}</p>
+            <h2>登录拾光地图</h2>
+            <p>统一账号入口，登录后将按账号权限进入对应空间</p>
           </div>
 
           {error && <div className="auth-error" role="alert"><span>!</span>{error}</div>}
@@ -105,12 +100,11 @@ export default function Login({ switchToRegister = () => {}, onLoginSuccess = ()
             </label>
 
             <button className="auth-submit" type="submit" disabled={submitting}>
-              {submitting ? <><i />正在验证…</> : <>{adminMode ? '进入管理控制台' : '登录'}<span>→</span></>}
+              {submitting ? <><i />正在验证…</> : <>登录<span>→</span></>}
             </button>
           </form>
 
-          {!adminMode && <p className="auth-switch">还没有账号？<button type="button" onClick={switchToRegister}>创建新账号</button></p>}
-          {adminMode && <p className="auth-admin-hint"><span>◆</span> 管理端不会展示任何账号密码或数据库密钥</p>}
+          <p className="auth-switch">还没有账号？<button type="button" onClick={switchToRegister}>创建新账号</button></p>
         </div>
       </section>
     </main>

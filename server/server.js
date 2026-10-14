@@ -204,7 +204,6 @@ app.post('/api/login', async (req, res) => {
     try{
         const username = String(req.body?.username || '').trim();
         const password = String(req.body?.password || '');
-        const adminMode = req.body?.adminMode === true;
         const [rows] = await db.query(`
             SELECT id, username, password, role, email, avatar_url,
                    DATE_FORMAT(birthday, '%Y-%m-%d') AS birthday
@@ -219,10 +218,6 @@ app.post('/api/login', async (req, res) => {
         if(!ok) {
             await logAuthEvent(db, req, {userId: user.id, username: user.username, eventType: 'LOGIN_FAILED'});
             return res.json({success: false, message: '密码错误'});
-        }
-        if (adminMode && user.role !== 'super_admin') {
-            await logAuthEvent(db, req, {userId: user.id, username: user.username, eventType: 'ADMIN_LOGIN_DENIED'});
-            return res.status(403).json({success: false, message: '该账号没有超级管理员权限'});
         }
         await new Promise((resolve, reject) => req.session.regenerate(error => error ? reject(error) : resolve()));
         req.session.user = {

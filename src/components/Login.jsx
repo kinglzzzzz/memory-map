@@ -38,7 +38,7 @@ export default function Login({ switchToRegister = () => {}, onLoginSuccess = ()
         <div className="auth-showcase__copy">
           <span className="auth-kicker">YOUR MEMORY ATLAS</span>
           <h1>让散落的时光，<br />重新拥有坐标。</h1>
-          <p>记录地点、照片与心情，只在你的账号里安全保存。</p>
+          <p>记录地点、照片与心情。</p>
         </div>
         <div className="auth-map-art" aria-hidden="true">
           <i className="auth-route auth-route--one" />

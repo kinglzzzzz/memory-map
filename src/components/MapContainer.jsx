@@ -42,12 +42,82 @@ const newMemoryIcon = L.divIcon({
   iconAnchor: [27, 60],
   popupAnchor: [0, -57],
 });
+
+const coordinatePi = Math.PI;
+const transformLat = (lng, lat) => {
+  let result = -100 + 2 * lng + 3 * lat + .2 * lat * lat + .1 * lng * lat + .2 * Math.sqrt(Math.abs(lng));
+  result += (20 * Math.sin(6 * lng * coordinatePi) + 20 * Math.sin(2 * lng * coordinatePi)) * 2 / 3;
+  result += (20 * Math.sin(lat * coordinatePi) + 40 * Math.sin(lat / 3 * coordinatePi)) * 2 / 3;
+  return result + (160 * Math.sin(lat / 12 * coordinatePi) + 320 * Math.sin(lat * coordinatePi / 30)) * 2 / 3;
+};
+const transformLng = (lng, lat) => {
+  let result = 300 + lng + 2 * lat + .1 * lng * lng + .1 * lng * lat + .1 * Math.sqrt(Math.abs(lng));
+  result += (20 * Math.sin(6 * lng * coordinatePi) + 20 * Math.sin(2 * lng * coordinatePi)) * 2 / 3;
+  result += (20 * Math.sin(lng * coordinatePi) + 40 * Math.sin(lng / 3 * coordinatePi)) * 2 / 3;
+  return result + (150 * Math.sin(lng / 12 * coordinatePi) + 300 * Math.sin(lng / 30 * coordinatePi)) * 2 / 3;
+};
+const outsideChina = (lat, lng) => lng < 72.004 || lng > 137.8347 || lat < .8293 || lat > 55.8271;
+const wgs84ToGcj02 = (lat, lng) => {
+  if (outsideChina(lat, lng)) return [lat, lng];
+  let dLat = transformLat(lng - 105, lat - 35);
+  let dLng = transformLng(lng - 105, lat - 35);
+  const radLat = lat / 180 * coordinatePi;
+  let magic = Math.sin(radLat);
+  magic = 1 - .006693421622965943 * magic * magic;
+  const sqrtMagic = Math.sqrt(magic);
+  dLat = dLat * 180 / ((6335552.717000426 / (magic * sqrtMagic)) * coordinatePi);
+  dLng = dLng * 180 / ((6378245 / sqrtMagic * Math.cos(radLat)) * coordinatePi);
+  return [lat + dLat, lng + dLng];
+};
+const gcj02ToWgs84 = (lat, lng) => {
+  const [convertedLat, convertedLng] = wgs84ToGcj02(lat, lng);
+  return [lat * 2 - convertedLat, lng * 2 - convertedLng];
+};
+
+const tileProviders = [
+  {
+    url: 'https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=7&x={x}&y={y}&z={z}',
+    subdomains: ['1', '2', '3', '4'],
+    attribution: '&copy; 高德地图'
+  },
+  {
+    url: 'https://map.geoq.cn/ArcGIS/rest/services/ChinaOnlineCommunity/MapServer/tile/{z}/{y}/{x}',
+    attribution: '&copy; GeoQ'
+  }
+];
+
+function ResilientTileLayer() {
+  const [providerIndex, setProviderIndex] = useState(0);
+  const errorCount = useRef(0);
+  const provider = tileProviders[providerIndex];
+  return (
+    <TileLayer
+      key={provider.url}
+      url={provider.url}
+      subdomains={provider.subdomains}
+      attribution={provider.attribution}
+      maxZoom={18}
+      crossOrigin
+      eventHandlers={{
+        tileerror: () => {
+          errorCount.current += 1;
+          if (errorCount.current >= 3 && providerIndex < tileProviders.length - 1) {
+            errorCount.current = 0;
+            setProviderIndex((current) => current + 1);
+          }
+        }
+      }}
+    />
+  );
+}
+
 function MapClickHandler({ onPickPoint }) {
   useMapEvents({
     click(event) {
+      const [lat, lng] = gcj02ToWgs84(event.latlng.lat, event.latlng.lng);
       onPickPoint({
-        lat: event.latlng.lat,
-        lng: event.latlng.lng
+        lat,
+        lng
       })
     }
   })
@@ -65,7 +135,7 @@ function MapController({targetPos}) {
     observer?.observe(map.getContainer());
 
     if(targetPos) {
-      map.flyTo([targetPos.lat, targetPos.lng], targetPos.zoom || 15, { duration: 1.25 });
+      map.flyTo(wgs84ToGcj02(targetPos.lat, targetPos.lng), targetPos.zoom || 15, { duration: 1.25 });
     }
     return () => {
       window.cancelAnimationFrame(frame);
@@ -446,21 +516,17 @@ export default function MapContainer({onLogout, user}) {
             )}
             <div className="map-wrapper">
               <LeafletMap
-                center={[23.13, 113.27]}
+                center={wgs84ToGcj02(23.13, 113.27)}
                 zoom={8}
                 className="map-container"
                 zoomControl={false}
               >
-                <TileLayer
-                  attribution='&copy; OpenStreetMap contributors & Esri'
-                  url="/api/map/tiles/{z}/{x}/{y}.png"
-                  maxZoom={19}
-                />
+                <ResilientTileLayer />
                 <ZoomControl position="bottomright" />
                 <MapController targetPos={mapTargetPos} />
                 <MapClickHandler onPickPoint={handlePickPoint} />
                 {mapTargetPos && (
-                  <Marker position={[mapTargetPos.lat, mapTargetPos.lng]} icon={searchResultIcon} zIndexOffset={1000}>
+                  <Marker position={wgs84ToGcj02(mapTargetPos.lat, mapTargetPos.lng)} icon={searchResultIcon} zIndexOffset={1000}>
                     <Popup className="search-popup">
                       <strong>{mapTargetPos.shortName}</strong>
                       <p>{mapTargetPos.label}</p>
@@ -470,7 +536,7 @@ export default function MapContainer({onLogout, user}) {
                 )}
                 {
                   Array.isArray(memories) && memories.map(memory => (
-                    <Marker key={memory.id} position={[memory.lat, memory.lng]} icon={getDollIcon(memory.id)}>
+                    <Marker key={memory.id} position={wgs84ToGcj02(Number(memory.lat), Number(memory.lng))} icon={getDollIcon(memory.id)}>
                       <Popup>
                         <h3 className="popup-title">{memory.title}</h3>
                         <p className="popup-story">{memory.mood || "暂无心情描述"}</p>
@@ -482,7 +548,7 @@ export default function MapContainer({onLogout, user}) {
                   ))
                 }
                 {selectedPoint && (
-                  <Marker key="selected-point" position={[selectedPoint.lat, selectedPoint.lng]} icon={newMemoryIcon}>
+                  <Marker key="selected-point" position={wgs84ToGcj02(selectedPoint.lat, selectedPoint.lng)} icon={newMemoryIcon}>
                     <Popup>
                       <p className="selected-coord">
                         选中坐标：{Number(selectedPoint.lat).toFixed(3)}, {Number(selectedPoint.lng).toFixed(3)}

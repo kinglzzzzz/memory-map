@@ -51,23 +51,42 @@ app.use(session({
 const uploadDir = process.env.UPLOAD_DIR
     ? path.resolve(process.env.UPLOAD_DIR)
     : path.join(__dirname, 'uploads');
+const bundledUploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, {recursive: true});
 }
-app.use('/uploads', express.static(uploadDir));
+// 新上传的图片优先从持久化目录读取；旧版本随源码保存的图片作为兼容回退。
+app.use('/uploads', express.static(uploadDir, {maxAge: isProduction ? '7d' : 0}));
+if (path.resolve(uploadDir) !== path.resolve(bundledUploadDir)) {
+    app.use('/uploads', express.static(bundledUploadDir, {maxAge: isProduction ? '7d' : 0}));
+}
 
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
         cb(null, uploadDir);
     },
     filename: (req, file, cb) =>{
-        const  ext = path.extname(file.originalname);
-        const filename = Date.now() + ext;
+        const extensions = {
+            'image/jpeg': '.jpg',
+            'image/png': '.png',
+            'image/webp': '.webp',
+            'image/gif': '.gif'
+        };
+        const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}${extensions[file.mimetype] || '.jpg'}`;
         cb(null, filename);
     }
 });
 
-const upload = multer({ storage });
+const upload = multer({
+    storage,
+    limits: {fileSize: 10 * 1024 * 1024},
+    fileFilter: (req, file, cb) => {
+        if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.mimetype)) {
+            return cb(new Error('仅支持 JPG、PNG、WebP 或 GIF 图片'));
+        }
+        cb(null, true);
+    }
+});
 
 const db = mysql.createPool(dbConfig);
 function checkLogin(req, res, next){
@@ -342,7 +361,7 @@ app.delete('/api/memories/:id',  checkLogin, async (req, res)=>{
     }
     const memory = rows[0];
     if(memory?.imgSrc){
-      const filePath = path.join(__dirname, memory.imgSrc);
+      const filePath = path.join(uploadDir, path.basename(memory.imgSrc));
       if(fs.existsSync(filePath)){
         fs.unlinkSync(filePath);
       }
@@ -366,6 +385,70 @@ if (fs.existsSync(frontendDist)) {
     res.sendFile(path.join(frontendDist, 'index.html'));
   });
 }
+
+app.get('/api/geocode', checkLogin, async (req, res) => {
+    const query = String(req.query.q || '').trim();
+    if (query.length < 2 || query.length > 100) {
+        return res.status(400).json({success: false, message: '请输入 2 至 100 个字符的地点'});
+    }
+
+    try {
+        const params = new URLSearchParams({
+            q: query,
+            format: 'jsonv2',
+            addressdetails: '1',
+            limit: '6',
+            'accept-language': 'zh-CN'
+        });
+        const response = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
+            headers: {
+                'Accept': 'application/json',
+                'Accept-Language': 'zh-CN,zh;q=0.9',
+                'User-Agent': 'memory-map/1.0'
+            },
+            signal: AbortSignal.timeout(10000)
+        });
+        if (!response.ok) throw new Error(`Geocoding responded with ${response.status}`);
+        const data = await response.json();
+        res.set('Cache-Control', 'private, max-age=300');
+        res.json(Array.isArray(data) ? data : []);
+    } catch (error) {
+        console.error('地点搜索失败', error);
+        res.status(502).json({success: false, message: '地点搜索服务暂时不可用，请稍后重试'});
+    }
+});
+
+app.get('/api/map/tiles/:z/:x/:y.png', checkLogin, async (req, res) => {
+    const z = Number(req.params.z);
+    const x = Number(req.params.x);
+    const y = Number(req.params.y);
+    if (![z, x, y].every(Number.isInteger) || z < 0 || z > 19 || x < 0 || y < 0) {
+        return res.status(400).end();
+    }
+
+    const sources = [
+        `https://tile.openstreetmap.org/${z}/${x}/${y}.png`,
+        `https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/${z}/${y}/${x}`
+    ];
+    for (const source of sources) {
+        try {
+            const response = await fetch(source, {
+                headers: {'User-Agent': 'memory-map/1.0'},
+                signal: AbortSignal.timeout(10000)
+            });
+            if (!response.ok) continue;
+            const body = Buffer.from(await response.arrayBuffer());
+            res.set({
+                'Content-Type': response.headers.get('content-type') || 'image/png',
+                'Cache-Control': 'public, max-age=604800, immutable'
+            });
+            return res.send(body);
+        } catch (error) {
+            console.warn('地图瓦片源不可用', source, error.message);
+        }
+    }
+    res.status(502).end();
+});
 
 
 async function startServer() {

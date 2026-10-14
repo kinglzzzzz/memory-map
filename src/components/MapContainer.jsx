@@ -56,9 +56,22 @@ function MapClickHandler({ onPickPoint }) {
 function MapController({targetPos}) {
   const map = useMap();
   useEffect(() => {
+    const refreshSize = () => map.invalidateSize({ pan: false });
+    const frame = window.requestAnimationFrame(refreshSize);
+    window.addEventListener('resize', refreshSize);
+    const observer = typeof ResizeObserver === 'undefined'
+      ? null
+      : new ResizeObserver(refreshSize);
+    observer?.observe(map.getContainer());
+
     if(targetPos) {
       map.flyTo([targetPos.lat, targetPos.lng], targetPos.zoom || 15, { duration: 1.25 });
     }
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener('resize', refreshSize);
+      observer?.disconnect();
+    };
   }, [map, targetPos]);
   return null;
 }
@@ -205,15 +218,15 @@ export default function MapContainer({onLogout, user}) {
       setSearching(true);
       setSearchError('');
       try {
-        const params = new URLSearchParams({
-          q: query,
-          format: 'jsonv2',
-          addressdetails: '1',
-          limit: '6',
-          'accept-language': 'zh-CN',
+        const params = new URLSearchParams({q: query});
+        const response = await fetch(`${API_BASE}/api/geocode?${params}`, {
+          credentials: 'include',
+          signal: controller.signal
         });
-        const response = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, { signal: controller.signal });
-        if (!response.ok) throw new Error('地点服务暂时不可用');
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.message || '地点服务暂时不可用');
+        }
         const data = await response.json();
         setSearchResults(Array.isArray(data) ? data : []);
         setShowSuggestions(true);
@@ -342,104 +355,37 @@ export default function MapContainer({onLogout, user}) {
   }
   if(loading) return <div>加载记忆数据...</div>;
 
-  //导航按钮公共样式
-  const navBtnStyle = {
-    background:"transparent",
-    border:"none",
-    color:"#fff",
-    fontSize:"16px",
-    padding:"8px 12px",
-    borderRadius:"4px",
-    cursor:"pointer",
-    transition:"background 0.2s"
-  }
-
   return (
     <>
-      {/* 导航栏 */}
-      <div style={{
-        width: '100%',
-        height:'60px',
-        background:"#2c3e50",
-        display:"flex",
-        alignItems:"center",
-        padding:"0 24px",
-        boxSizing:"border-box",
-        position:"fixed",
-        top:0,
-        left:0,
-        zIndex:999,
-        justifyContent:"space-between",
-      }}>
-        <div style={{display:"flex", alignItems:"center",gap:"32px"}}>
-          <div style={{fontSize:"24px", fontWeight:"bold", color:"#fff"}}>拾光记忆</div>
-          <div style={{display:"flex",gap:"28px"}}>
-            <button style={navBtnStyle} 
-              onMouseEnter={(e) => e.target.style.background="#344e59"} 
-              onMouseLeave={(e) =>{e.target.style.background="transparent"}}
-              onClick={()=>setNavPage('map')}
-              >首页</button>
-            <button 
-              style={navBtnStyle}
-              onMouseEnter={(e)=>e.target.style.background="#34495e"}
-              onMouseLeave={(e)=>e.target.style.background="transparent"}
-              onClick={()=>setNavPage('profile')}
-            >个人中心</button>
-            <button 
-              style={navBtnStyle}
-              onMouseEnter={(e)=>e.target.style.background="#34495e"}
-              onMouseLeave={(e)=>e.target.style.background="transparent"}
-              onClick={()=>setNavPage('album')}
-            >拾光相册</button>
-            <button 
-              style={navBtnStyle}
-              onMouseEnter={(e)=>e.target.style.background="#34495e"}
-              onMouseLeave={(e)=>e.target.style.background="transparent"}
-              onClick={()=>setNavPage('music')}
-            >拾光音乐</button>
-            <button 
-              style={navBtnStyle}
-              onMouseEnter={(e)=>e.target.style.background="#34495e"}
-              onMouseLeave={(e)=>e.target.style.background="transparent"}
-              onClick={()=>setNavPage('agent')}
-            >拾光agent</button>
+      <nav className="app-navbar" aria-label="主导航">
+        <div className="app-navbar__main">
+          <div className="app-navbar__brand">拾光记忆</div>
+          <div className="app-navbar__links">
+            <button className={navPage === 'map' ? 'active' : ''} onClick={()=>setNavPage('map')}>首页</button>
+            <button className={navPage === 'profile' ? 'active' : ''} onClick={()=>setNavPage('profile')}>个人中心</button>
+            <button className={navPage === 'album' ? 'active' : ''} onClick={()=>setNavPage('album')}>拾光相册</button>
+            <button className={navPage === 'music' ? 'active' : ''} onClick={()=>setNavPage('music')}>拾光音乐</button>
+            <button className={navPage === 'agent' ? 'active' : ''} onClick={()=>setNavPage('agent')}>拾光 Agent</button>
             {user?.role === 'super_admin' && (
               <button
-                style={navBtnStyle}
-                onMouseEnter={(e)=>e.target.style.background="#34495e"}
-                onMouseLeave={(e)=>e.target.style.background="transparent"}
+                className={navPage === 'admin' ? 'active' : ''}
                 onClick={()=>setNavPage('admin')}
               >管理后台</button>
             )}
           </div>
         </div>
-        <div>
-          <button 
-            style={{
-              background: '#e74c3c',
-              border: 'none',
-              color: '#fff',
-              fontSize: '15px',
-              cursor: 'pointer',
-              padding: '7px 14px',
-              borderRadius: '6px',
-              transition: 'background 0.2s'
-            }}
-            onMouseEnter={(e)=>e.target.style.background="#c0392b"}
-            onMouseLeave={(e)=>e.target.style.background="#e74c3c"}
+          <button className="app-navbar__logout"
             onClick={()=>{
               if(window.confirm('确定要退出登录吗？')){
                 onLogout();
               }
             }}
           >
-            退出登录
+            <span className="app-navbar__logout-wide">退出登录</span><span className="app-navbar__logout-short">退出</span>
           </button>
-        </div>
-      </div>
+      </nav>
 
-      {/* 页面内容区域，顶部留空避开导航栏 */}
-      <div style={{ marginTop: '60px', height: 'calc(100vh - 60px)' }}>
+      <div className="app-content">
         {navPage === 'map' && (
           <div className="map-page">
             <header className="map-hero">
@@ -506,8 +452,8 @@ export default function MapContainer({onLogout, user}) {
                 zoomControl={false}
               >
                 <TileLayer
-                  attribution='&copy; OpenStreetMap contributors'
-                  url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  attribution='&copy; OpenStreetMap contributors & Esri'
+                  url="/api/map/tiles/{z}/{x}/{y}.png"
                   maxZoom={19}
                 />
                 <ZoomControl position="bottomright" />

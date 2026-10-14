@@ -3,6 +3,32 @@ import './Album.css';
 
 const API_BASE = '';
 
+const getImageUrl = (photo) => {
+  const source = photo.imgSrc?.trim() || '';
+  return source.startsWith('http') ? source : `${API_BASE}${source}`;
+};
+
+function PhotoAsset({photo, preview = false}) {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return (
+      <span className={`album-photo-missing${preview ? ' album-photo-missing--preview' : ''}`}>
+        <span aria-hidden="true">⌁</span>
+        <strong>照片文件暂不可用</strong>
+        <small>请重新上传，或检查 Railway 持久化存储</small>
+      </span>
+    );
+  }
+  return (
+    <img
+      src={getImageUrl(photo)}
+      alt={photo.title || '记忆照片'}
+      loading={preview ? 'eager' : 'lazy'}
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
 export default function Album() {
   const [photos, setPhotos] = useState([]);
   const [previewPhoto, setPreviewPhoto] = useState(null);
@@ -32,11 +58,6 @@ export default function Album() {
     };
   }, [closePreview]);
 
-  const getImageUrl = (photo) => {
-    const source = photo.imgSrc?.trim() || '';
-    return source.startsWith('http') ? source : `${API_BASE}${source}`;
-  };
-
   return (
     <main className="album-page">
       <div className="album-backdrop" aria-hidden="true" />
@@ -63,15 +84,7 @@ export default function Album() {
             {photos.map((photo, index) => (
               <article className="album-card" key={photo.id} style={{ '--card-delay': `${index * 60}ms` }}>
                 <button className="album-card__image" type="button" onClick={() => setPreviewPhoto(photo)} aria-label={`查看照片：${photo.title || '未命名记忆'}`}>
-                  <img
-                    src={getImageUrl(photo)}
-                    alt={photo.title || '记忆照片'}
-                    loading="lazy"
-                    onError={(event) => {
-                      event.currentTarget.onerror = null;
-                      event.currentTarget.src = '/bg-sea.png';
-                    }}
-                  />
+                  <PhotoAsset photo={photo} />
                   <span className="album-card__index">{String(index + 1).padStart(2, '0')}</span>
                   <span className="album-card__view">放大查看</span>
                 </button>
@@ -92,7 +105,7 @@ export default function Album() {
         <div className="album-preview" role="dialog" aria-modal="true" aria-label="照片预览" onClick={closePreview}>
           <button className="album-preview__close" type="button" onClick={closePreview} aria-label="关闭预览">×</button>
           <figure onClick={(event) => event.stopPropagation()}>
-            <img src={getImageUrl(previewPhoto)} alt={previewPhoto.title || '照片预览'} />
+            <PhotoAsset photo={previewPhoto} preview />
             <figcaption>
               <strong>{previewPhoto.title || '未命名的记忆'}</strong>
               {previewPhoto.mood && <span>{previewPhoto.mood}</span>}

@@ -14,6 +14,8 @@
 @keyframes album-rise { from { opacity: 0; transform: translateY(15px); } }
 .album-card__image { position: relative; display: block; width: 100%; aspect-ratio: 4 / 3; overflow: hidden; padding: 0; border: 0; background: #dce9e5; cursor: zoom-in; }
 .album-card__image img { width: 100%; height: 100%; display: block; object-fit: cover; transition: transform .6s ease; }
+.album-photo-missing { display: grid; width: 100%; height: 100%; min-height: 220px; place-content: center; justify-items: center; gap: 5px; padding: 24px; background: linear-gradient(145deg, #edf5f2, #dcebe7); color: #5f7d76; text-align: center; }
+.album-photo-missing > span { font-size: 34px; }.album-photo-missing strong { font-size: 14px; }.album-photo-missing small { color: #80958f; font-size: 11px; }
 .album-card:hover .album-card__image img { transform: scale(1.045); }
 .album-card__image::after { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(15,50,44,0) 55%, rgba(15,50,44,.34)); content: ''; }
 .album-card__index { position: absolute; z-index: 2; top: 14px; left: 14px; padding: 5px 8px; border: 1px solid rgba(255,255,255,.55); border-radius: 8px; background: rgba(21,59,52,.34); backdrop-filter: blur(6px); color: #fff; font-size: 10px; font-weight: 800; letter-spacing: .1em; }
@@ -33,6 +35,7 @@
 .album-preview { position: fixed; inset: 0; z-index: 2000; display: grid; place-items: center; padding: 40px; background: rgba(11,27,24,.88); backdrop-filter: blur(12px); cursor: zoom-out; }
 .album-preview figure { max-width: min(1000px, 90vw); max-height: 88vh; margin: 0; overflow: hidden; border-radius: 18px; background: #fff; box-shadow: 0 24px 80px rgba(0,0,0,.4); cursor: default; }
 .album-preview img { display: block; max-width: 100%; max-height: 72vh; margin: auto; object-fit: contain; }
+.album-photo-missing--preview { width: min(720px, 80vw); height: min(520px, 60vh); }
 .album-preview figcaption { display: grid; gap: 4px; padding: 16px 20px; }
 .album-preview figcaption strong { color: #244e47; }.album-preview figcaption span { color: #758984; font-size: 12px; }
 .album-preview__close { position: absolute; top: 24px; right: 28px; display: grid; width: 42px; height: 42px; place-items: center; border: 1px solid rgba(255,255,255,.25); border-radius: 50%; background: rgba(255,255,255,.1); color: #fff; font-size: 27px; cursor: pointer; }

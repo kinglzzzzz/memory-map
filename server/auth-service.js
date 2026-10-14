@@ -23,6 +23,9 @@ async function ensureAuthSchema(db) {
   if (!(await columnExists(db, 'app_user', 'birthday'))) {
     await db.query('ALTER TABLE app_user ADD COLUMN birthday DATE NULL');
   }
+  if (!(await columnExists(db, 'app_user', 'avatar_url'))) {
+    await db.query('ALTER TABLE app_user ADD COLUMN avatar_url VARCHAR(500) NULL');
+  }
 
   await db.query(`
     CREATE TABLE IF NOT EXISTS auth_events (

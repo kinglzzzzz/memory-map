@@ -133,7 +133,7 @@ app.post('/api/login', async (req, res) => {
         const username = String(req.body?.username || '').trim();
         const password = String(req.body?.password || '');
         const [rows] = await db.query(`
-            SELECT id, username, password, role, email,
+            SELECT id, username, password, role, email, avatar_url,
                    DATE_FORMAT(birthday, '%Y-%m-%d') AS birthday
             FROM app_user WHERE username = ?
         `, [username]);
@@ -153,7 +153,8 @@ app.post('/api/login', async (req, res) => {
             username: user.username,
             role: user.role || 'user',
             email: user.email || '',
-            birthday: user.birthday || ''
+            birthday: user.birthday || '',
+            avatarUrl: user.avatar_url || ''
         };
         await db.query('UPDATE app_user SET last_login_at = NOW() WHERE id = ?', [user.id]);
         await logAuthEvent(db, req, {userId: user.id, username: user.username, eventType: 'LOGIN_SUCCESS'});
@@ -168,12 +169,19 @@ app.get('/api/get-user', async (req, res)=>{
     if(!req.session.user) return res.json({isLogin: false});
     try {
         const [rows] = await db.query(`
-            SELECT id, username, role, email,
+            SELECT id, username, role, email, avatar_url,
                    DATE_FORMAT(birthday, '%Y-%m-%d') AS birthday
             FROM app_user WHERE id = ?
         `, [req.session.user.id]);
         if (!rows.length) return res.json({isLogin: false});
-        req.session.user = {...rows[0], email: rows[0].email || '', birthday: rows[0].birthday || ''};
+        req.session.user = {
+            id: rows[0].id,
+            username: rows[0].username,
+            role: rows[0].role,
+            email: rows[0].email || '',
+            birthday: rows[0].birthday || '',
+            avatarUrl: rows[0].avatar_url || ''
+        };
         res.json({isLogin: true, user: req.session.user});
     } catch (error) {
         console.error('账号信息加载失败', error);
@@ -197,6 +205,57 @@ app.put('/api/profile', checkLogin, async (req, res) => {
     } catch (error) {
         console.error('个人资料保存失败', error);
         res.status(500).json({success: false, message: '个人资料保存失败'});
+    }
+});
+
+app.post('/api/profile/avatar', checkLogin, upload.single('avatar'), async (req, res) => {
+    if (!req.file) return res.status(400).json({success: false, message: '请选择头像图片'});
+    try {
+        const [rows] = await db.query('SELECT avatar_url FROM app_user WHERE id = ?', [req.session.user.id]);
+        const avatarUrl = `/uploads/${req.file.filename.trim()}`;
+        await db.query('UPDATE app_user SET avatar_url = ? WHERE id = ?', [avatarUrl, req.session.user.id]);
+        const previousUrl = rows[0]?.avatar_url;
+        if (previousUrl) {
+            const previousPath = path.join(uploadDir, path.basename(previousUrl));
+            if (fs.existsSync(previousPath)) fs.unlinkSync(previousPath);
+        }
+        req.session.user = {...req.session.user, avatarUrl};
+        res.json({success: true, avatarUrl, user: req.session.user});
+    } catch (error) {
+        if (req.file) {
+            const uploadedPath = path.join(uploadDir, req.file.filename);
+            if (fs.existsSync(uploadedPath)) fs.unlinkSync(uploadedPath);
+        }
+        console.error('头像上传失败', error);
+        res.status(500).json({success: false, message: '头像上传失败'});
+    }
+});
+
+app.put('/api/profile/password', checkLogin, async (req, res) => {
+    const currentPassword = String(req.body?.currentPassword || '');
+    const newPassword = String(req.body?.newPassword || '');
+    if (newPassword.length < 6 || newPassword.length > 72) {
+        return res.status(400).json({success: false, message: '新密码需为 6 至 72 个字符'});
+    }
+    if (currentPassword === newPassword) {
+        return res.status(400).json({success: false, message: '新密码不能与当前密码相同'});
+    }
+    try {
+        const [rows] = await db.query('SELECT password FROM app_user WHERE id = ?', [req.session.user.id]);
+        if (!rows.length || !(await bcrypt.compare(currentPassword, rows[0].password))) {
+            return res.status(400).json({success: false, message: '当前密码不正确'});
+        }
+        const hashPwd = await bcrypt.hash(newPassword, 10);
+        await db.query('UPDATE app_user SET password = ? WHERE id = ?', [hashPwd, req.session.user.id]);
+        await logAuthEvent(db, req, {
+            userId: req.session.user.id,
+            username: req.session.user.username,
+            eventType: 'PASSWORD_CHANGE'
+        });
+        res.json({success: true, message: '密码修改成功'});
+    } catch (error) {
+        console.error('密码修改失败', error);
+        res.status(500).json({success: false, message: '密码修改失败'});
     }
 });
 

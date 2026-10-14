@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import './Profile.css';
 
 const API_BASE = '';
@@ -39,6 +39,12 @@ export default function Profile({ onNavigate = () => {}, onLogout = () => {} }) 
   const [profileDraft, setProfileDraft] = useState({email: '', birthday: ''});
   const [profileMessage, setProfileMessage] = useState('');
   const [eventsOpen, setEventsOpen] = useState(true);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [passwordOpen, setPasswordOpen] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({currentPassword: '', newPassword: '', confirmPassword: ''});
+  const [passwordMessage, setPasswordMessage] = useState('');
+  const [savingPassword, setSavingPassword] = useState(false);
+  const avatarInputRef = useRef(null);
 
   useEffect(() => {
     let active = true;
@@ -104,6 +110,63 @@ export default function Profile({ onNavigate = () => {}, onLogout = () => {} }) 
     }
   };
 
+  const uploadAvatar = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type)) {
+      setError('头像仅支持 JPG、PNG、WebP 或 GIF 图片');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setError('头像文件不能超过 10MB');
+      return;
+    }
+    setUploadingAvatar(true);
+    setError('');
+    try {
+      const body = new FormData();
+      body.append('avatar', file);
+      const response = await fetch(`${API_BASE}/api/profile/avatar`, {method: 'POST', credentials: 'include', body});
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success) throw new Error(data.message || '头像上传失败');
+      setUser(data.user);
+    } catch (uploadError) {
+      setError(uploadError.message || '头像上传失败');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
+  const changePassword = async (event) => {
+    event.preventDefault();
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordMessage('两次输入的新密码不一致');
+      return;
+    }
+    setSavingPassword(true);
+    setPasswordMessage('');
+    try {
+      const response = await fetch(`${API_BASE}/api/profile/password`, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        credentials: 'include',
+        body: JSON.stringify({currentPassword: passwordForm.currentPassword, newPassword: passwordForm.newPassword}),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success) throw new Error(data.message || '密码修改失败');
+      setPasswordMessage('密码修改成功');
+      setPasswordForm({currentPassword: '', newPassword: '', confirmPassword: ''});
+      const eventsResponse = await fetch(`${API_BASE}/api/auth/me/events`, {credentials: 'include'});
+      const eventsData = await eventsResponse.json();
+      setAuthEvents(Array.isArray(eventsData.events) ? eventsData.events : []);
+    } catch (passwordError) {
+      setPasswordMessage(passwordError.message || '密码修改失败');
+    } finally {
+      setSavingPassword(false);
+    }
+  };
+
   const cards = [
     { icon: 'pin', value: memories.length, label: '记忆足迹', hint: '在地图上重温', page: 'map', tone: 'mint' },
     { icon: 'image', value: photoCount, label: '拾光照片', hint: '查看时光相册', page: 'album', tone: 'peach' },
@@ -117,7 +180,11 @@ export default function Profile({ onNavigate = () => {}, onLogout = () => {} }) 
   return (
     <main className="profile-page">
       <section className="profile-hero" aria-labelledby="profile-title">
-        <div className={`profile-avatar profile-avatar--${avatarIndex % 5}`} role="img" aria-label="动漫人物头像">{avatarCharacter}</div>
+        <button className={`profile-avatar profile-avatar--${avatarIndex % 5}`} type="button" aria-label="上传或更换头像" disabled={uploadingAvatar} onClick={() => avatarInputRef.current?.click()}>
+          {user?.avatarUrl ? <img src={user.avatarUrl} alt="我的头像" /> : <span aria-hidden="true">{avatarCharacter}</span>}
+          <i>{uploadingAvatar ? '…' : '✎'}</i>
+        </button>
+        <input ref={avatarInputRef} className="profile-avatar-input" type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={uploadAvatar} />
         <div className="profile-intro">
           <div className="profile-eyebrow"><span />账号在线</div>
           <h1 id="profile-title">你好，{username}</h1>
@@ -128,7 +195,7 @@ export default function Profile({ onNavigate = () => {}, onLogout = () => {} }) 
         </button>
       </section>
 
-      {error && <div className="profile-alert" role="alert">{error}，部分数据暂时无法展示。</div>}
+      {error && <div className="profile-alert" role="alert">{error}</div>}
 
       <section className="profile-grid" aria-label="个人数据概览">
         {cards.map((card) => (
@@ -194,19 +261,35 @@ export default function Profile({ onNavigate = () => {}, onLogout = () => {} }) 
             <span className="profile-account__label">账号角色</span>
             <span>拾光者</span>
           </div>
+          <div className="profile-account__row">
+            <span className="profile-account__label">修改密码</span>
+            <button className="profile-password-trigger" type="button" onClick={() => {
+              setPasswordOpen((open) => !open);
+              setPasswordMessage('');
+            }}>{passwordOpen ? '收起' : '修改'}</button>
+          </div>
         </div>
+        {passwordOpen && (
+          <form className="profile-password-form" onSubmit={changePassword}>
+            <label><span>当前密码</span><input type="password" autoComplete="current-password" minLength="6" maxLength="72" required value={passwordForm.currentPassword} onChange={(event) => setPasswordForm((form) => ({...form, currentPassword: event.target.value}))} /></label>
+            <label><span>新密码</span><input type="password" autoComplete="new-password" minLength="6" maxLength="72" required value={passwordForm.newPassword} onChange={(event) => setPasswordForm((form) => ({...form, newPassword: event.target.value}))} /></label>
+            <label><span>确认新密码</span><input type="password" autoComplete="new-password" minLength="6" maxLength="72" required value={passwordForm.confirmPassword} onChange={(event) => setPasswordForm((form) => ({...form, confirmPassword: event.target.value}))} /></label>
+            <button type="submit" disabled={savingPassword}>{savingPassword ? '修改中…' : '确认修改'}</button>
+            {passwordMessage && <p role="status">{passwordMessage}</p>}
+          </form>
+        )}
       </section>
 
       <section className={`profile-security${eventsOpen ? '' : ' profile-security--collapsed'}`} aria-labelledby="security-title">
         <div className="profile-section-heading">
-          <div><span>SECURITY LOG</span><h2 id="security-title">我的注册与登录记录</h2></div>
+          <div><span>LATEST RECORD</span><h2 id="security-title">我的登记记录</h2></div>
           <button className="profile-events-toggle" type="button" aria-expanded={eventsOpen} aria-controls="profile-events-list" onClick={() => setEventsOpen((open) => !open)}>
             <Icon name="clock" size={17} />{eventsOpen ? '收起记录' : '展开记录'}<b aria-hidden="true">{eventsOpen ? '⌃' : '⌄'}</b>
           </button>
         </div>
         {eventsOpen && <div className="profile-events" id="profile-events-list">
-          {authEvents.length === 0 ? <p className="profile-events__empty">暂无登录记录</p> : authEvents.slice(0, 10).map((event) => {
-            const labels = { REGISTER: '账号注册', LOGIN_SUCCESS: '登录成功', LOGIN_FAILED: '登录失败', LOGOUT: '退出登录' };
+          {authEvents.length === 0 ? <p className="profile-events__empty">暂无登记记录</p> : authEvents.slice(0, 1).map((event) => {
+            const labels = { REGISTER: '账号注册', LOGIN_SUCCESS: '登录成功', LOGIN_FAILED: '登录失败', LOGOUT: '退出登录', PASSWORD_CHANGE: '密码已修改' };
             return (
               <article key={event.id}>
                 <span className={`profile-event-dot profile-event-dot--${event.event_type.toLowerCase()}`} />

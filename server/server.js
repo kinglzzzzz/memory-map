@@ -358,18 +358,19 @@ app.get('/api/memories', checkLogin, async (req, res) => {
   }
 });
 
-app.post('/api/memories', upload.single('file'), async (req, res) => {
-  if (!req.session.user) {
-    return res.status(401).json({error:'请先登录'});
-  }
+app.post('/api/memories', checkLogin, upload.single('file'), async (req, res) => {
   try {
     const { lat, lng, title, mood } = req.body;
-    const fileName = req.file.filename.trim();
-    const imgSrc = `/uploads/${fileName}`;
+    const parsedLat = Number(lat);
+    const parsedLng = Number(lng);
+    if (!Number.isFinite(parsedLat) || !Number.isFinite(parsedLng) || Math.abs(parsedLat) > 90 || Math.abs(parsedLng) > 180) {
+      return res.status(400).json({success: false, error: '地点坐标无效'});
+    }
+    const imgSrc = req.file ? `/uploads/${req.file.filename.trim()}` : null;
     const userId = req.session.user.id; 
     const sql = 'INSERT INTO memories (lat, lng, title, mood, imgSrc, user_id) VALUES (?,?,?,?,?,?)';
-    const [result] = await db.query(sql, [lat, lng, title, mood, imgSrc, userId]);
-    res.json({ success: true, id: result.insertId });
+    const [result] = await db.query(sql, [parsedLat, parsedLng, String(title || '').trim(), String(mood || '').trim(), imgSrc, userId]);
+    res.json({ success: true, id: result.insertId, imgSrc });
   } catch (err) {
     console.error('【保存报错】', err);
     res.status(500).json({ error: '保存失败' });
@@ -384,14 +385,23 @@ app.put('/api/memories/:id', checkLogin, upload.single('file'), async (req, res)
         const userId = req.session.user.id;
         const { id } = req.params;
         const { lat, lng, title, mood } = req.body;
+        const parsedLat = Number(lat);
+        const parsedLng = Number(lng);
+        if (!Number.isFinite(parsedLat) || !Number.isFinite(parsedLng) || Math.abs(parsedLat) > 90 || Math.abs(parsedLng) > 180) {
+            return res.status(400).json({success: false, message: '地点坐标无效'});
+        }
+        const [ownedRows] = await db.query('SELECT imgSrc FROM memories WHERE id = ? AND user_id = ?', [id, userId]);
+        if (!ownedRows.length) return res.status(404).json({success: false, message: '没有找到这条记忆'});
         let imgSrc = null;
         if(req.file){
             imgSrc = `/uploads/${req.file.filename.trim()}`;
-            await db.query('UPDATE memories SET lat=?,lng=?,title=?,mood=?,imgSrc=? WHERE id=? and user_id =?', [lat,lng,title,mood,imgSrc,id,userId]);
+            await db.query('UPDATE memories SET lat=?,lng=?,title=?,mood=?,imgSrc=? WHERE id=? and user_id =?', [parsedLat,parsedLng,String(title || '').trim(),String(mood || '').trim(),imgSrc,id,userId]);
+            const previousPath = ownedRows[0].imgSrc && path.join(uploadDir, path.basename(ownedRows[0].imgSrc));
+            if (previousPath && fs.existsSync(previousPath)) fs.unlinkSync(previousPath);
         } else{
-            await db.query('UPDATE memories SET lat=?,lng=?,title=?,mood=? WHERE id=? and user_id=?', [lat,lng,title,mood,id,userId]);
+            await db.query('UPDATE memories SET lat=?,lng=?,title=?,mood=? WHERE id=? and user_id=?', [parsedLat,parsedLng,String(title || '').trim(),String(mood || '').trim(),id,userId]);
         }
-        res.json({success: true});
+        res.json({success: true, imgSrc: imgSrc || ownedRows[0].imgSrc});
     }catch(error){
         console.error(error);
         res.status(500).json({success: false, message: '更新失败'});

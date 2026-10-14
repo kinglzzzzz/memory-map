@@ -435,7 +435,7 @@ export default function MapContainer({onLogout, user}) {
             <button className={navPage === 'album' ? 'active' : ''} onClick={()=>setNavPage('album')}>拾光相册</button>
             <button className={navPage === 'music' ? 'active' : ''} onClick={()=>setNavPage('music')}>拾光音乐</button>
             <button className={navPage === 'agent' ? 'active' : ''} onClick={()=>setNavPage('agent')}>拾光 Agent</button>
-            <button className={navPage === 'profile' ? 'active' : ''} onClick={()=>setNavPage('profile')}>个人中心</button>
+            <button className={navPage === 'profile' ? 'active' : ''} onClick={()=>setNavPage('profile')}>拾光档案</button>
             {user?.role === 'super_admin' && (
               <button
                 className={navPage === 'admin' ? 'active' : ''}

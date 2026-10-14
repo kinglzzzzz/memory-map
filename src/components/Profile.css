@@ -93,15 +93,25 @@
 .profile-section-heading span { color: #64a396; font-size: 11px; font-weight: 800; letter-spacing: .16em; }
 .profile-section-heading h2 { margin: 4px 0 0; font-size: 21px; }
 .profile-secure { display: flex; align-items: center; gap: 7px; padding: 7px 10px; border-radius: 999px; background: #edf8f4; color: #438779; font-size: 12px; }
+.profile-heading-actions { display: flex; align-items: center; gap: 8px; }
+.profile-action, .profile-events-toggle { display: inline-flex; align-items: center; gap: 7px; padding: 8px 11px; border: 1px solid #cfe3de; border-radius: 9px; background: #3f9583; color: #fff; font-size: 12px; cursor: pointer; }
+.profile-action:hover { background: #327c6d; }.profile-action:disabled { cursor: wait; opacity: .65; }
+.profile-action--ghost { background: #fff; color: #66827b; }.profile-action--ghost:hover { background: #f3f8f6; }
+.profile-save-message { margin: 14px 0 0; color: #3e8878; font-size: 12px; text-align: right; }
 .profile-account__rows { display: grid; grid-template-columns: 1fr 1fr; }
 .profile-account__row { display: flex; align-items: center; justify-content: space-between; min-height: 66px; border-bottom: 1px solid #edf1f0; font-size: 14px; }
 .profile-account__row:nth-child(odd) { padding-right: 28px; border-right: 1px solid #edf1f0; }
 .profile-account__row:nth-child(even) { padding-left: 28px; }
 .profile-account__label { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+.profile-account__row input { width: min(220px, 58%); padding: 8px 10px; border: 1px solid #d8e6e2; border-radius: 8px; outline: 0; color: #315950; background: #fbfdfc; }
+.profile-account__row input:focus { border-color: #59a390; box-shadow: 0 0 0 3px rgba(89,163,144,.1); }
 .profile-account code { padding: 5px 8px; border-radius: 6px; background: #f3f6f5; color: #48635e; font-family: ui-monospace, monospace; }
 .profile-online { display: flex; align-items: center; gap: 7px; color: #37826f; font-weight: 700; }
 .profile-online i { width: 7px; height: 7px; border-radius: 50%; background: #39a284; }
 .profile-security { margin-top: 22px; padding: 30px 34px 8px; border: 1px solid #e5ecea; border-radius: 20px; background: #fff; box-shadow: 0 8px 32px rgba(36,68,61,.055); }
+.profile-security--collapsed { padding-bottom: 30px; }
+.profile-events-toggle { border-color: #dcebe7; border-radius: 999px; background: #edf8f4; color: #438779; }
+.profile-events-toggle:hover { background: #e1f2ed; }.profile-events-toggle b { font-size: 15px; line-height: 1; }
 .profile-events article { display: grid; grid-template-columns: 10px 1fr auto; align-items: center; gap: 12px; min-height: 61px; border-bottom: 1px solid #edf1f0; }.profile-events article:last-child { border-bottom: 0; }.profile-events article > div { display: grid; gap: 3px; }.profile-events strong { color: #385c55; font-size: 13px; }.profile-events small { color: #96a5a1; font-size: 10px; }.profile-events time { color: #7f918d; font-size: 11px; }.profile-event-dot { width: 8px; height: 8px; border-radius: 50%; background: #8da39e; box-shadow: 0 0 0 4px rgba(141,163,158,.1); }.profile-event-dot--login_success, .profile-event-dot--register { background: #43a08b; }.profile-event-dot--login_failed { background: #d56f64; }.profile-events__empty { padding: 28px 0; color: #8b9c98; text-align: center; }
 .profile-state { display: flex; align-items: center; justify-content: center; gap: 12px; min-height: 360px; color: #688480; }
 .profile-spinner { width: 22px; height: 22px; border: 2px solid #d7e9e4; border-top-color: #48a898; border-radius: 50%; animation: profile-spin .8s linear infinite; }
@@ -117,5 +127,10 @@
   .profile-security { padding: 24px 22px 4px; }
   .profile-account__rows { grid-template-columns: 1fr; }
   .profile-account__row:nth-child(n) { padding: 0; border-right: 0; }
+  .profile-section-heading { align-items: flex-start; gap: 12px; }
+  .profile-heading-actions { flex-wrap: wrap; justify-content: flex-end; }
+  .profile-heading-actions .profile-secure { display: none; }
+  .profile-account__row input { width: 58%; }
+  .profile-events-toggle { padding: 8px; font-size: 0; }.profile-events-toggle b { font-size: 15px; }
   .profile-events article { grid-template-columns: 10px 1fr; }.profile-events time { grid-column: 2; margin-top: -8px; padding-bottom: 8px; }
 }

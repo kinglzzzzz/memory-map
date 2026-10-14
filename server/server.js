@@ -100,14 +100,25 @@ app.post('/api/register', async (req, res) => {
     try {
         const username = String(req.body?.username || '').trim();
         const password = String(req.body?.password || '');
+        const email = String(req.body?.email || '').trim().toLowerCase();
+        const birthday = String(req.body?.birthday || '').trim();
         if (username.length < 2 || username.length > 40) {
             return res.status(400).json({success: false, message: '用户名需为 2 至 40 个字符'});
         }
         if (password.length < 6 || password.length > 72) {
             return res.status(400).json({success: false, message: '密码需为 6 至 72 个字符'});
         }
+        if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            return res.status(400).json({success: false, message: '请输入有效的邮箱地址'});
+        }
+        if (birthday && (!/^\d{4}-\d{2}-\d{2}$/.test(birthday) || birthday > new Date().toISOString().slice(0, 10))) {
+            return res.status(400).json({success: false, message: '请输入有效的生日'});
+        }
         const hashPwd = await bcrypt.hash(password, 10);
-        const [result] = await db.query("INSERT INTO app_user(username,password,role) values(?,?,'user')", [username, hashPwd]);
+        const [result] = await db.query(
+            "INSERT INTO app_user(username,password,email,birthday,role) values(?,?,?,?,'user')",
+            [username, hashPwd, email || null, birthday || null]
+        );
         await logAuthEvent(db, req, {userId: result.insertId, username, eventType: 'REGISTER'});
         res.json({success: true, message: '注册成功', userId: result.insertId});
     }catch (error) {
@@ -121,7 +132,11 @@ app.post('/api/login', async (req, res) => {
     try{
         const username = String(req.body?.username || '').trim();
         const password = String(req.body?.password || '');
-        const [rows] = await db.query('SELECT id, username, password, role FROM app_user WHERE username = ?', [username]);
+        const [rows] = await db.query(`
+            SELECT id, username, password, role, email,
+                   DATE_FORMAT(birthday, '%Y-%m-%d') AS birthday
+            FROM app_user WHERE username = ?
+        `, [username]);
         if(rows.length === 0){
             await logAuthEvent(db, req, {username, eventType: 'LOGIN_FAILED'});
             return res.json({success: false, message: '用户不存在'});
@@ -133,7 +148,13 @@ app.post('/api/login', async (req, res) => {
             return res.json({success: false, message: '密码错误'});
         }
         await new Promise((resolve, reject) => req.session.regenerate(error => error ? reject(error) : resolve()));
-        req.session.user = {id: user.id, username: user.username, role: user.role || 'user'};
+        req.session.user = {
+            id: user.id,
+            username: user.username,
+            role: user.role || 'user',
+            email: user.email || '',
+            birthday: user.birthday || ''
+        };
         await db.query('UPDATE app_user SET last_login_at = NOW() WHERE id = ?', [user.id]);
         await logAuthEvent(db, req, {userId: user.id, username: user.username, eventType: 'LOGIN_SUCCESS'});
         res.json({success: true, message: '登录成功', user: req.session.user});  
@@ -143,11 +164,39 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
-app.get('/api/get-user', (req, res)=>{
-    if(req.session.user){
+app.get('/api/get-user', async (req, res)=>{
+    if(!req.session.user) return res.json({isLogin: false});
+    try {
+        const [rows] = await db.query(`
+            SELECT id, username, role, email,
+                   DATE_FORMAT(birthday, '%Y-%m-%d') AS birthday
+            FROM app_user WHERE id = ?
+        `, [req.session.user.id]);
+        if (!rows.length) return res.json({isLogin: false});
+        req.session.user = {...rows[0], email: rows[0].email || '', birthday: rows[0].birthday || ''};
         res.json({isLogin: true, user: req.session.user});
-    } else{
-        res.json({isLogin: false});
+    } catch (error) {
+        console.error('账号信息加载失败', error);
+        res.status(500).json({success: false, message: '账号信息加载失败'});
+    }
+});
+
+app.put('/api/profile', checkLogin, async (req, res) => {
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    const birthday = String(req.body?.birthday || '').trim();
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return res.status(400).json({success: false, message: '请输入有效的邮箱地址'});
+    }
+    if (birthday && (!/^\d{4}-\d{2}-\d{2}$/.test(birthday) || birthday > new Date().toISOString().slice(0, 10))) {
+        return res.status(400).json({success: false, message: '请输入有效的生日'});
+    }
+    try {
+        await db.query('UPDATE app_user SET email = ?, birthday = ? WHERE id = ?', [email || null, birthday || null, req.session.user.id]);
+        req.session.user = {...req.session.user, email, birthday};
+        res.json({success: true, user: req.session.user});
+    } catch (error) {
+        console.error('个人资料保存失败', error);
+        res.status(500).json({success: false, message: '个人资料保存失败'});
     }
 });
 

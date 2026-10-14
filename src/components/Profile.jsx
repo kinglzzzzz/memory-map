@@ -34,6 +34,11 @@ export default function Profile({ onNavigate = () => {}, onLogout = () => {} }) 
   const [authEvents, setAuthEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileDraft, setProfileDraft] = useState({email: '', birthday: ''});
+  const [profileMessage, setProfileMessage] = useState('');
+  const [eventsOpen, setEventsOpen] = useState(true);
 
   useEffect(() => {
     let active = true;
@@ -54,7 +59,9 @@ export default function Profile({ onNavigate = () => {}, onLogout = () => {} }) 
     ])
       .then(([userData, memoryData, eventData]) => {
         if (!active) return;
-        setUser(userData.isLogin ? userData.user : null);
+        const currentUser = userData.isLogin ? userData.user : null;
+        setUser(currentUser);
+        setProfileDraft({email: currentUser?.email || '', birthday: currentUser?.birthday || ''});
         setMemories(Array.isArray(memoryData) ? memoryData : []);
         setAuthEvents(Array.isArray(eventData.events) ? eventData.events : []);
       })
@@ -71,7 +78,31 @@ export default function Profile({ onNavigate = () => {}, onLogout = () => {} }) 
   const username = user?.username || '未登录用户';
   const avatarIndex = getAvatarIndex(username);
   const avatarCharacter = avatarCharacters[avatarIndex];
-  const accountId = user?.id ? `MEM-${String(user.id).padStart(5, '0')}` : '—';
+  const birthdayText = user?.birthday
+    ? new Intl.DateTimeFormat('zh-CN', {year: 'numeric', month: 'long', day: 'numeric'}).format(new Date(`${user.birthday}T00:00:00`))
+    : '未设置';
+
+  const saveProfile = async () => {
+    setSavingProfile(true);
+    setProfileMessage('');
+    try {
+      const response = await fetch(`${API_BASE}/api/profile`, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        credentials: 'include',
+        body: JSON.stringify(profileDraft),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.message || '保存失败');
+      setUser(data.user);
+      setEditingProfile(false);
+      setProfileMessage('拾光档案已更新');
+    } catch (saveError) {
+      setProfileMessage(saveError.message || '个人资料保存失败');
+    } finally {
+      setSavingProfile(false);
+    }
+  };
 
   const cards = [
     { icon: 'pin', value: memories.length, label: '记忆足迹', hint: '在地图上重温', page: 'map', tone: 'mint' },
@@ -117,10 +148,26 @@ export default function Profile({ onNavigate = () => {}, onLogout = () => {} }) 
         <div className="profile-section-heading">
           <div>
             <span>ACCOUNT</span>
-            <h2 id="account-title">账号信息</h2>
+            <h2 id="account-title">拾光档案</h2>
           </div>
-          <div className="profile-secure"><Icon name="shield" size={17} />会话已保护</div>
+          <div className="profile-heading-actions">
+            <div className="profile-secure"><Icon name="shield" size={17} />会话已保护</div>
+            {editingProfile ? (
+              <>
+                <button className="profile-action profile-action--ghost" type="button" onClick={() => {
+                  setEditingProfile(false);
+                  setProfileDraft({email: user?.email || '', birthday: user?.birthday || ''});
+                  setProfileMessage('');
+                }}>取消</button>
+                <button className="profile-action" type="button" disabled={savingProfile} onClick={saveProfile}>{savingProfile ? '保存中…' : '保存档案'}</button>
+              </>
+            ) : (
+              <button className="profile-action" type="button" onClick={() => setEditingProfile(true)}>编辑档案</button>
+            )}
+          </div>
         </div>
+
+        {profileMessage && <p className="profile-save-message" role="status">{profileMessage}</p>}
 
         <div className="profile-account__rows">
           <div className="profile-account__row">
@@ -128,16 +175,20 @@ export default function Profile({ onNavigate = () => {}, onLogout = () => {} }) 
             <strong>{username}</strong>
           </div>
           <div className="profile-account__row">
-            <span className="profile-account__label">账号编号</span>
-            <code>{accountId}</code>
+            <span className="profile-account__label">邮箱</span>
+            {editingProfile
+              ? <input type="email" value={profileDraft.email} maxLength="190" placeholder="填写邮箱地址" onChange={(event) => setProfileDraft((draft) => ({...draft, email: event.target.value}))} />
+              : <span>{user?.email || '未设置'}</span>}
           </div>
           <div className="profile-account__row">
             <span className="profile-account__label">登录状态</span>
             <span className="profile-online"><i />已登录</span>
           </div>
           <div className="profile-account__row">
-            <span className="profile-account__label">数据归属</span>
-            <span>仅当前账号可见</span>
+            <span className="profile-account__label">生日</span>
+            {editingProfile
+              ? <input type="date" value={profileDraft.birthday} max={new Date().toISOString().slice(0, 10)} onChange={(event) => setProfileDraft((draft) => ({...draft, birthday: event.target.value}))} />
+              : <span>{birthdayText}</span>}
           </div>
           <div className="profile-account__row">
             <span className="profile-account__label">账号角色</span>
@@ -146,12 +197,14 @@ export default function Profile({ onNavigate = () => {}, onLogout = () => {} }) 
         </div>
       </section>
 
-      <section className="profile-security" aria-labelledby="security-title">
+      <section className={`profile-security${eventsOpen ? '' : ' profile-security--collapsed'}`} aria-labelledby="security-title">
         <div className="profile-section-heading">
           <div><span>SECURITY LOG</span><h2 id="security-title">我的注册与登录记录</h2></div>
-          <div className="profile-secure"><Icon name="clock" size={17} />仅你自己可见</div>
+          <button className="profile-events-toggle" type="button" aria-expanded={eventsOpen} aria-controls="profile-events-list" onClick={() => setEventsOpen((open) => !open)}>
+            <Icon name="clock" size={17} />{eventsOpen ? '收起记录' : '展开记录'}<b aria-hidden="true">{eventsOpen ? '⌃' : '⌄'}</b>
+          </button>
         </div>
-        <div className="profile-events">
+        {eventsOpen && <div className="profile-events" id="profile-events-list">
           {authEvents.length === 0 ? <p className="profile-events__empty">暂无登录记录</p> : authEvents.slice(0, 10).map((event) => {
             const labels = { REGISTER: '账号注册', LOGIN_SUCCESS: '登录成功', LOGIN_FAILED: '登录失败', LOGOUT: '退出登录' };
             return (
@@ -162,7 +215,7 @@ export default function Profile({ onNavigate = () => {}, onLogout = () => {} }) 
               </article>
             );
           })}
-        </div>
+        </div>}
       </section>
     </main>
   );

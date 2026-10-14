@@ -139,7 +139,6 @@ export default function Agent({ memories = [] }) {
         <div>
           <span className="agent-kicker">MEMORY RETRIEVAL ASSISTANT</span>
           <h1>拾光 Agent</h1>
-          <p>检索主题知识，并结合当前账号的地点与照片记忆生成回答。</p>
         </div>
         <div className={`agent-status agent-status--${databaseMode}`}>
           <i />
@@ -148,14 +147,6 @@ export default function Agent({ memories = [] }) {
           {databaseMode === 'local' && `本地知识库模式 · ${knowledge.length} 条`}
         </div>
       </header>
-
-      <div className="agent-data-flow" aria-label="知识库数据范围">
-        <span><b>01</b>知识检索 <em>knowledge_entries</em></span>
-        <i>→</i>
-        <span><b>02</b>个人上下文 <em>memories · 当前用户</em></span>
-        <i>→</i>
-        <span><b>03</b>带来源回答 <em>agent_messages</em></span>
-      </div>
 
       <div className="agent-layout">
         <aside className="knowledge-panel">

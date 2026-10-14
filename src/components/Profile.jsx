@@ -2,6 +2,12 @@ import { useEffect, useMemo, useState } from 'react';
 import './Profile.css';
 
 const API_BASE = '';
+const avatarCharacters = ['🧙‍♀️', '🧚‍♀️', '🥷', '🦸‍♀️', '🧝‍♀️', '👩‍🚀', '🧑‍🎤', '🤖', '👸', '🧑‍🎨'];
+
+const getAvatarIndex = (username) => Array.from(username).reduce(
+  (total, character) => (total * 31 + character.codePointAt(0)) >>> 0,
+  7,
+) % avatarCharacters.length;
 
 const Icon = ({ name, size = 20 }) => {
   const paths = {
@@ -63,7 +69,8 @@ export default function Profile({ onNavigate = () => {}, onLogout = () => {} }) 
     [memories],
   );
   const username = user?.username || '未登录用户';
-  const initials = username.slice(0, 1).toUpperCase();
+  const avatarIndex = getAvatarIndex(username);
+  const avatarCharacter = avatarCharacters[avatarIndex];
   const accountId = user?.id ? `MEM-${String(user.id).padStart(5, '0')}` : '—';
 
   const cards = [
@@ -79,7 +86,7 @@ export default function Profile({ onNavigate = () => {}, onLogout = () => {} }) 
   return (
     <main className="profile-page">
       <section className="profile-hero" aria-labelledby="profile-title">
-        <div className="profile-avatar" aria-hidden="true">{initials}</div>
+        <div className={`profile-avatar profile-avatar--${avatarIndex % 5}`} role="img" aria-label="动漫人物头像">{avatarCharacter}</div>
         <div className="profile-intro">
           <div className="profile-eyebrow"><span />账号在线</div>
           <h1 id="profile-title">你好，{username}</h1>
@@ -134,7 +141,7 @@ export default function Profile({ onNavigate = () => {}, onLogout = () => {} }) 
           </div>
           <div className="profile-account__row">
             <span className="profile-account__label">账号角色</span>
-            <span>{user?.role === 'super_admin' ? '超级管理员' : '普通用户'}</span>
+            <span>拾光者</span>
           </div>
         </div>
       </section>

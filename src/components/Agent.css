@@ -2,15 +2,12 @@
 .agent-header { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 24px; }
 .agent-kicker { color: #55a08f; font-size: 11px; font-weight: 800; letter-spacing: .18em; }
 .agent-header h1 { margin: 7px 0 6px; font-size: clamp(29px, 4vw, 40px); letter-spacing: -.04em; }
-.agent-header p { margin: 0; color: #738783; }
 .agent-status { display: flex; align-items: center; gap: 8px; padding: 9px 13px; border: 1px solid #dcebe7; border-radius: 999px; background: #f3faf7; color: #5f7f77; font-size: 12px; }
 .agent-status i, .agent-chat__top i { width: 7px; height: 7px; border-radius: 50%; background: #39a284; box-shadow: 0 0 0 4px rgba(57,162,132,.12); }
 .agent-status--local { border-color: #eadcbf; background: #fff9ee; color: #8c7445; }
 .agent-status--local i { background: #d6a84f; box-shadow: 0 0 0 4px rgba(214,168,79,.13); }
 .agent-status--connecting i { animation: agent-pulse 1s infinite alternate; }
 @keyframes agent-pulse { to { opacity: .35; } }
-.agent-data-flow { display: flex; align-items: center; justify-content: center; gap: 13px; margin: -8px 0 18px; padding: 11px 16px; border: 1px solid #e2ebe8; border-radius: 14px; background: #f8fbfa; color: #6c827d; font-size: 11px; }
-.agent-data-flow span { display: flex; align-items: center; gap: 6px; }.agent-data-flow b { color: #3e8f7f; }.agent-data-flow em { color: #95a39f; font-family: ui-monospace, monospace; font-style: normal; }.agent-data-flow > i { color: #a9b8b4; font-style: normal; }
 .agent-layout { display: grid; grid-template-columns: 310px minmax(0, 1fr); gap: 18px; min-height: 680px; }
 .knowledge-panel, .agent-chat { border: 1px solid #e2ebe8; border-radius: 20px; background: #fff; box-shadow: 0 10px 35px rgba(35,70,62,.06); }
 .knowledge-panel { display: flex; flex-direction: column; overflow: hidden; padding: 22px 14px 14px; }
@@ -69,10 +66,8 @@
   .agent-layout { grid-template-columns: 1fr; }
   .knowledge-panel { max-height: 285px; }
   .agent-chat { min-height: 620px; }
-  .agent-data-flow { justify-content: flex-start; overflow-x: auto; white-space: nowrap; }
 }
 @media (max-width: 560px) {
-  .agent-header p { font-size: 13px; }
   .agent-message > div { max-width: 88%; }
   .agent-messages { padding: 20px 14px; }
   .agent-composer { margin-inline: 12px; }

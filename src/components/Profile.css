@@ -42,9 +42,14 @@
   background: #3f9f8d;
   box-shadow: 0 12px 28px rgba(50, 123, 109, .2);
   color: #fff;
-  font-size: 34px;
+  font-size: 42px;
   font-weight: 700;
 }
+.profile-avatar--0 { background: linear-gradient(145deg, #70c4ad, #318e7d); }
+.profile-avatar--1 { background: linear-gradient(145deg, #f1ad98, #d77874); }
+.profile-avatar--2 { background: linear-gradient(145deg, #85b8df, #587fb9); }
+.profile-avatar--3 { background: linear-gradient(145deg, #c4a7df, #866bb8); }
+.profile-avatar--4 { background: linear-gradient(145deg, #efc875, #d3944c); }
 
 .profile-intro { position: relative; z-index: 1; flex: 1; }
 .profile-eyebrow { display: flex; align-items: center; gap: 7px; margin-bottom: 7px; color: #438779; font-size: 13px; font-weight: 700; letter-spacing: .08em; }
@@ -105,7 +110,7 @@
 @media (max-width: 760px) {
   .profile-page { width: min(100% - 24px, 1040px); padding-top: 28px; }
   .profile-hero { align-items: flex-start; padding: 24px; }
-  .profile-avatar { flex-basis: 64px; height: 64px; border-radius: 21px; font-size: 26px; }
+  .profile-avatar { flex-basis: 64px; height: 64px; border-radius: 21px; font-size: 32px; }
   .profile-logout { position: absolute; top: 16px; right: 16px; padding: 8px; font-size: 0; }
   .profile-grid { grid-template-columns: 1fr; }
   .profile-account { padding: 24px 22px 4px; }

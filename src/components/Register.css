@@ -36,6 +36,7 @@
 .auth-form-panel { display: grid; min-height: 100vh; place-items: center; padding: 44px; }
 .auth-card { width: min(100%, 440px); }
 .auth-card__heading > span { color: #4b9485; font-size: 12px; font-weight: 800; letter-spacing: .12em; }.auth-card__heading h2 { margin: 8px 0 7px; font-size: 32px; letter-spacing: -.04em; }.auth-card__heading p { margin: 0 0 31px; color: #7c908c; font-size: 14px; }
+.auth-card__heading h2:last-child { margin-bottom: 31px; }
 .auth-welcome { display: flex; align-items: baseline; gap: 12px; color: #357f71; }
 .auth-welcome span { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; font-size: 22px; font-weight: 800; letter-spacing: .04em; }
 .auth-welcome em { color: #7ba79e; font-family: Arial, sans-serif; font-size: 10px; font-style: normal; font-weight: 700; letter-spacing: .2em; }

@@ -57,7 +57,6 @@ export default function Login({ switchToRegister = () => {}, onLoginSuccess = ()
               <em>WELCOME BACK</em>
             </div>
             <h2>登录拾光地图</h2>
-            <p>统一账号入口，登录后将按账号权限进入对应空间</p>
           </div>
 
           {error && <div className="auth-error" role="alert"><span>!</span>{error}</div>}

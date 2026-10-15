@@ -229,7 +229,6 @@ export default function Agent({ memories = [] }) {
               <svg viewBox="0 0 24 24"><path d="m4 4 17 8-17 8 3-8-3-8Z"/><path d="M7 12h14"/></svg>
             </button>
           </div>
-          <p className="agent-disclaimer">仅检索当前登录用户的 memories；账号密码不会进入知识库或回答上下文。</p>
         </section>
       </div>
     </main>

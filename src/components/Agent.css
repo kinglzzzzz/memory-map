@@ -59,7 +59,6 @@
 .agent-composer button { display: grid; width: 39px; height: 39px; place-items: center; border: 0; border-radius: 11px; background: #3c8f7e; color: #fff; cursor: pointer; }
 .agent-composer button:disabled { opacity: .4; cursor: default; }
 .agent-composer svg { width: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.agent-disclaimer { margin: 0 20px 13px; color: #a0adaa; font-size: 9px; text-align: center; }
 @media (max-width: 850px) {
   .agent-page { width: min(100% - 22px, 1180px); padding-top: 28px; }
   .agent-status { display: none; }

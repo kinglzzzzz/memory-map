@@ -63,6 +63,20 @@
 .profile-eyebrow span { width: 7px; height: 7px; border-radius: 50%; background: #42a58f; box-shadow: 0 0 0 4px rgba(66,165,143,.13); }
 .profile-intro h1 { margin: 0; font-size: clamp(25px, 3vw, 34px); letter-spacing: -.03em; }
 .profile-intro p { margin: 8px 0 0; color: var(--muted); font-size: 15px; }
+.profile-signature { display: flex; align-items: center; gap: 9px; margin-top: 7px; }
+.profile-signature p { overflow: hidden; max-width: 520px; margin: 0; text-overflow: ellipsis; white-space: nowrap; }
+.profile-signature p.is-empty { color: #91a5a1; }
+.profile-signature > button, .profile-signature-actions button { padding: 5px 9px; border: 1px solid #c8ded8; border-radius: 999px; background: rgba(255,255,255,.76); color: #3f8275; font-size: 11px; cursor: pointer; white-space: nowrap; }
+.profile-signature > button:hover, .profile-signature-actions button:hover { border-color: #80b8aa; background: #fff; }
+.profile-signature-form { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.profile-signature-input { position: relative; width: min(520px, 100%); }
+.profile-signature-input input { width: 100%; padding: 9px 54px 9px 12px; border: 1px solid #bcd8d1; border-radius: 10px; outline: 0; background: rgba(255,255,255,.88); color: #315950; font-size: 13px; }
+.profile-signature-input input:focus { border-color: #58a08f; box-shadow: 0 0 0 3px rgba(88,160,143,.12); }
+.profile-signature-input span { position: absolute; top: 50%; right: 10px; color: #91a5a1; font-size: 9px; transform: translateY(-50%); }
+.profile-signature-actions { display: flex; gap: 5px; }
+.profile-signature-actions button:disabled { cursor: wait; opacity: .6; }
+.profile-signature-actions .is-danger { border-color: #ead1cc; color: #a2554d; }
+.profile-signature-message { display: block; margin-top: 5px; color: #418575; font-size: 10px; }
 
 .profile-logout {
   position: relative;
@@ -131,6 +145,11 @@
   .profile-hero { align-items: flex-start; padding: 24px; }
   .profile-avatar { flex-basis: 64px; width: 64px; height: 64px; border-radius: 21px; font-size: 32px; }
   .profile-avatar > i { opacity: 1; }
+  .profile-intro { padding-right: 36px; }
+  .profile-signature { align-items: flex-start; flex-direction: column; gap: 6px; }
+  .profile-signature p { max-width: 100%; white-space: normal; }
+  .profile-signature-form { align-items: stretch; flex-direction: column; }
+  .profile-signature-actions { flex-wrap: wrap; }
   .profile-logout { position: absolute; top: 16px; right: 16px; padding: 8px; font-size: 0; }
   .profile-grid { grid-template-columns: 1fr; }
   .profile-account { padding: 24px 22px 4px; }

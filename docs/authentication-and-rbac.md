@@ -18,6 +18,7 @@
 - `role`
 - `created_at`
 - `last_login_at`
+- `signature_text`
 
 同时创建 `auth_events` 表保存认证事件，不保存明文密码或密码哈希副本。
 

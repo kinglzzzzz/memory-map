@@ -26,6 +26,9 @@ async function ensureAuthSchema(db) {
   if (!(await columnExists(db, 'app_user', 'avatar_url'))) {
     await db.query('ALTER TABLE app_user ADD COLUMN avatar_url VARCHAR(500) NULL');
   }
+  if (!(await columnExists(db, 'app_user', 'signature_text'))) {
+    await db.query('ALTER TABLE app_user ADD COLUMN signature_text VARCHAR(160) NULL');
+  }
   if (!(await columnExists(db, 'app_user', 'music_initialized'))) {
     await db.query('ALTER TABLE app_user ADD COLUMN music_initialized TINYINT(1) NOT NULL DEFAULT 0');
   }

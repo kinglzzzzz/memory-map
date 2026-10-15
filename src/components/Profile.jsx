@@ -39,6 +39,10 @@ export default function Profile({ onNavigate = () => {}, onLogout = () => {} }) 
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileDraft, setProfileDraft] = useState({email: '', birthday: ''});
   const [profileMessage, setProfileMessage] = useState('');
+  const [editingSignature, setEditingSignature] = useState(false);
+  const [signatureDraft, setSignatureDraft] = useState('');
+  const [savingSignature, setSavingSignature] = useState(false);
+  const [signatureMessage, setSignatureMessage] = useState('');
   const [eventsOpen, setEventsOpen] = useState(true);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [passwordOpen, setPasswordOpen] = useState(false);
@@ -73,6 +77,7 @@ export default function Profile({ onNavigate = () => {}, onLogout = () => {} }) 
         const currentUser = userData.isLogin ? userData.user : null;
         setUser(currentUser);
         setProfileDraft({email: currentUser?.email || '', birthday: currentUser?.birthday || ''});
+        setSignatureDraft(currentUser?.signature || '');
         setMemories(Array.isArray(memoryData) ? memoryData : []);
         setAuthEvents(Array.isArray(eventData.events) ? eventData.events : []);
         setMusicCount(Array.isArray(musicData.tracks) ? musicData.tracks.length : 0);
@@ -113,6 +118,56 @@ export default function Profile({ onNavigate = () => {}, onLogout = () => {} }) 
       setProfileMessage(saveError.message || '个人资料保存失败');
     } finally {
       setSavingProfile(false);
+    }
+  };
+
+  const saveSignature = async (event) => {
+    event.preventDefault();
+    const signature = signatureDraft.trim();
+    if (!signature) {
+      setSignatureMessage('请输入个性签名，或使用删除按钮清空');
+      return;
+    }
+    setSavingSignature(true);
+    setSignatureMessage('');
+    try {
+      const response = await fetch(`${API_BASE}/api/profile/signature`, {
+        method: user?.signature ? 'PUT' : 'POST',
+        headers: {'Content-Type': 'application/json'},
+        credentials: 'include',
+        body: JSON.stringify({signature}),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success) throw new Error(data.message || '个签保存失败');
+      setUser(data.user);
+      setSignatureDraft(data.signature);
+      setEditingSignature(false);
+      setSignatureMessage(user?.signature ? '个签已更新' : '个签已添加');
+    } catch (signatureError) {
+      setSignatureMessage(signatureError.message || '个签保存失败');
+    } finally {
+      setSavingSignature(false);
+    }
+  };
+
+  const deleteSignature = async () => {
+    setSavingSignature(true);
+    setSignatureMessage('');
+    try {
+      const response = await fetch(`${API_BASE}/api/profile/signature`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success) throw new Error(data.message || '个签删除失败');
+      setUser(data.user);
+      setSignatureDraft('');
+      setEditingSignature(false);
+      setSignatureMessage('个签已删除');
+    } catch (signatureError) {
+      setSignatureMessage(signatureError.message || '个签删除失败');
+    } finally {
+      setSavingSignature(false);
     }
   };
 
@@ -194,7 +249,44 @@ export default function Profile({ onNavigate = () => {}, onLogout = () => {} }) 
         <div className="profile-intro">
           <div className="profile-eyebrow"><span />账号在线</div>
           <h1 id="profile-title">你好，{username}</h1>
-          <p>每一处坐标，都在替你保存一段温柔的时间。</p>
+          {editingSignature ? (
+            <form className="profile-signature-form" onSubmit={saveSignature}>
+              <div className="profile-signature-input">
+                <input
+                  type="text"
+                  value={signatureDraft}
+                  maxLength="120"
+                  autoFocus
+                  placeholder="写下此刻想说的话"
+                  aria-label="个性签名"
+                  onChange={(event) => {
+                    setSignatureDraft(event.target.value);
+                    setSignatureMessage('');
+                  }}
+                />
+                <span>{signatureDraft.length}/120</span>
+              </div>
+              <div className="profile-signature-actions">
+                <button type="submit" disabled={savingSignature}>{savingSignature ? '保存中…' : '保存'}</button>
+                <button type="button" disabled={savingSignature} onClick={() => {
+                  setEditingSignature(false);
+                  setSignatureDraft(user?.signature || '');
+                  setSignatureMessage('');
+                }}>取消</button>
+                {user?.signature && <button className="is-danger" type="button" disabled={savingSignature} onClick={deleteSignature}>删除</button>}
+              </div>
+            </form>
+          ) : (
+            <div className="profile-signature">
+              <p className={user?.signature ? '' : 'is-empty'}>{user?.signature || '还没有个签，写下此刻想说的话。'}</p>
+              <button type="button" onClick={() => {
+                setSignatureDraft(user?.signature || '');
+                setEditingSignature(true);
+                setSignatureMessage('');
+              }}>{user?.signature ? '编辑个签' : '添加个签'}</button>
+            </div>
+          )}
+          {signatureMessage && <small className="profile-signature-message" role="status">{signatureMessage}</small>}
         </div>
         <button className="profile-logout" type="button" onClick={onLogout}>
           <Icon name="logout" size={18} />退出登录

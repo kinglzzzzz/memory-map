@@ -205,7 +205,7 @@ app.post('/api/login', async (req, res) => {
         const username = String(req.body?.username || '').trim();
         const password = String(req.body?.password || '');
         const [rows] = await db.query(`
-            SELECT id, username, password, role, email, avatar_url,
+            SELECT id, username, password, role, email, avatar_url, signature_text,
                    DATE_FORMAT(birthday, '%Y-%m-%d') AS birthday
             FROM app_user WHERE username = ?
         `, [username]);
@@ -226,7 +226,8 @@ app.post('/api/login', async (req, res) => {
             role: user.role || 'user',
             email: user.email || '',
             birthday: user.birthday || '',
-            avatarUrl: user.avatar_url || ''
+            avatarUrl: user.avatar_url || '',
+            signature: user.signature_text || ''
         };
         await db.query('UPDATE app_user SET last_login_at = NOW() WHERE id = ?', [user.id]);
         await logAuthEvent(db, req, {userId: user.id, username: user.username, eventType: 'LOGIN_SUCCESS'});
@@ -241,7 +242,7 @@ app.get('/api/get-user', async (req, res)=>{
     if(!req.session.user) return res.json({isLogin: false});
     try {
         const [rows] = await db.query(`
-            SELECT id, username, role, email, avatar_url,
+            SELECT id, username, role, email, avatar_url, signature_text,
                    DATE_FORMAT(birthday, '%Y-%m-%d') AS birthday
             FROM app_user WHERE id = ?
         `, [req.session.user.id]);
@@ -252,7 +253,8 @@ app.get('/api/get-user', async (req, res)=>{
             role: rows[0].role,
             email: rows[0].email || '',
             birthday: rows[0].birthday || '',
-            avatarUrl: rows[0].avatar_url || ''
+            avatarUrl: rows[0].avatar_url || '',
+            signature: rows[0].signature_text || ''
         };
         res.json({isLogin: true, user: req.session.user});
     } catch (error) {
@@ -277,6 +279,49 @@ app.put('/api/profile', checkLogin, async (req, res) => {
     } catch (error) {
         console.error('个人资料保存失败', error);
         res.status(500).json({success: false, message: '个人资料保存失败'});
+    }
+});
+
+const saveProfileSignature = async (req, res) => {
+    const signature = String(req.body?.signature || '').trim();
+    if (!signature) {
+        return res.status(400).json({success: false, message: '请输入个性签名'});
+    }
+    if (signature.length > 120) {
+        return res.status(400).json({success: false, message: '个性签名不能超过 120 个字符'});
+    }
+    try {
+        await db.query('UPDATE app_user SET signature_text = ? WHERE id = ?', [signature, req.session.user.id]);
+        req.session.user = {...req.session.user, signature};
+        res.json({success: true, signature, user: req.session.user});
+    } catch (error) {
+        console.error('个性签名保存失败', error);
+        res.status(500).json({success: false, message: '个性签名保存失败'});
+    }
+};
+
+app.get('/api/profile/signature', checkLogin, async (req, res) => {
+    try {
+        const [rows] = await db.query('SELECT signature_text FROM app_user WHERE id = ?', [req.session.user.id]);
+        if (!rows.length) return res.status(404).json({success: false, message: '没有找到该账号'});
+        res.json({success: true, signature: rows[0].signature_text || ''});
+    } catch (error) {
+        console.error('个性签名加载失败', error);
+        res.status(500).json({success: false, message: '个性签名加载失败'});
+    }
+});
+
+app.post('/api/profile/signature', checkLogin, saveProfileSignature);
+app.put('/api/profile/signature', checkLogin, saveProfileSignature);
+
+app.delete('/api/profile/signature', checkLogin, async (req, res) => {
+    try {
+        await db.query('UPDATE app_user SET signature_text = NULL WHERE id = ?', [req.session.user.id]);
+        req.session.user = {...req.session.user, signature: ''};
+        res.json({success: true, signature: '', user: req.session.user});
+    } catch (error) {
+        console.error('个性签名删除失败', error);
+        res.status(500).json({success: false, message: '个性签名删除失败'});
     }
 });
 
